@@ -1,0 +1,44 @@
+{
+    "name": "RaphNetwork-Launcher",
+    "preductname": "RaphNetwork Launcher",
+    "version": "1.0.0",
+    "description": "Launcher RaphNetwork",
+    "main": "src/app.js",
+    "author": {
+        "name": "RaphCorp Inc.",
+        "email": "admin@raphhosting.com",
+        "url": "https://raphhosting.com/"
+    },
+    "url": "http://launcher.raphnetwork.raphhosting.com",
+    "scripts": {
+        "start": "cross-env-shell NODE_ENV=dev electron .",
+        "dev": "cross-env-shell DEV_TOOL=open nodemon --exec npm start",
+        "build": "node build.js --obf=true --build=platform",
+        "icon": "node build.js --icon=https://featherpanel.raphhosting.com/attachments/692f3f84ce64e_Logo_RaphNetwork.png"
+    },
+    "license": "CCANC",
+    "nodemonConfig": {
+        "ext": "js,html,css",
+        "ignore": "**/test"
+    },
+    "dependencies": {
+        "electron-updater": "^6.6.2",
+        "minecraft-java-core": "^4.2.3",
+        "node-bdd": "^2.0.4",
+        "node-fetch": "^2.7.0",
+        "xml-js": "^1.6.11"
+    },
+    "devDependencies": {
+        "cross-env": "^10.1.0",
+        "electron": "^39.2.4",
+        "electron-builder": "^26.0.12",
+        "javascript-obfuscator": "^4.1.1",
+        "jimp": "^1.6.0",
+        "nodemon": "^3.1.11",
+        "png2icons": "^2.0.1"
+    },
+    "repository": {
+        "type": "git",
+        "url": "git+https://github.com/RaphCorp/raphnetwork-launcher.git"
+    }
+}

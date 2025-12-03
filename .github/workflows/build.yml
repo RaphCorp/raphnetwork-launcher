@@ -1,6 +1,7 @@
 # module du helios launcher
 name: Launcher Build
 on:
+  workflow_dispatch:
   push:
     branches: [ master ]
 

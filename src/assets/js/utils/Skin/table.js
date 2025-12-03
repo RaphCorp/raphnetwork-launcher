@@ -1,8 +1,3 @@
-/**
- * @author Luuxis
- * Luuxis License v1.0 (voir fichier LICENSE pour les détails en FR/EN)
- */
-
 let head = {
     inner: [
         [8, 8, 8, 8],

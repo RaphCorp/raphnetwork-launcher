@@ -1,8 +1,3 @@
-/**
- * @author Luuxis
- * Luuxis License v1.0 (voir fichier LICENSE pour les détails en FR/EN)
- */
-
 "use strict";
 const { app, BrowserWindow, Menu } = require("electron");
 const path = require("path");

@@ -81,8 +81,6 @@ class Index {
                 npmRebuild: true,
                 publish: [{
                     provider: "github",
-                    owner: "RaphCorp",
-                    repo: "raphnetwork-launcher-source",
                     releaseType: "release"
                 }],
                 win: {

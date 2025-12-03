@@ -81,7 +81,9 @@ class Index {
                 npmRebuild: true,
                 publish: [{
                     provider: "github",
-                    releaseType: 'release',
+                    owner: "RaphCorp",
+                    repo: "raphnetwork-launcher-source",
+                    releaseType: "release"
                 }],
                 win: {
                     icon: "./app/assets/images/icon.ico",

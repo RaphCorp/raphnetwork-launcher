@@ -1,3 +1,7 @@
+/**
+ * @author Luuxis
+ * Luuxis License v1.0 (voir fichier LICENSE pour les détails en FR/EN)
+ */
 import { config, database, logger, changePanel, appdata, setStatus, pkg, popup } from '../utils.js'
 
 const { Launch } = require('minecraft-java-core')
@@ -16,20 +20,21 @@ class Home {
 
     async news() {
         let newsElement = document.querySelector('.news-list');
-        let news = await config.getNews().then(res => res).catch(err => false);
+        let news = await config.getNews(this.config).then(res => res).catch(err => false);
         if (news) {
             if (!news.length) {
                 let blockNews = document.createElement('div');
+                const date = this.getdate(new Date())
                 blockNews.classList.add('news-block');
                 blockNews.innerHTML = `
                     <div class="news-header">
-                        <img class="server-status-icon" src="assets/images/icon.png">
+                        <img class="server-status-icon" src="assets/images/icon/icon.png">
                         <div class="header-text">
                             <div class="title">Aucun news n'ai actuellement disponible.</div>
                         </div>
                         <div class="date">
-                            <div class="day">1</div>
-                            <div class="month">Janvier</div>
+                            <div class="day">${date.day}</div>
+                            <div class="month">${date.month}</div>
                         </div>
                     </div>
                     <div class="news-content">
@@ -45,7 +50,7 @@ class Home {
                     blockNews.classList.add('news-block');
                     blockNews.innerHTML = `
                         <div class="news-header">
-                            <img class="server-status-icon" src="assets/images/icon.png">
+                            <img class="server-status-icon" src="assets/images/icon/icon.png">
                             <div class="header-text">
                                 <div class="title">${News.title}</div>
                             </div>
@@ -65,16 +70,17 @@ class Home {
             }
         } else {
             let blockNews = document.createElement('div');
+            const date = this.getdate(new Date())
             blockNews.classList.add('news-block');
             blockNews.innerHTML = `
                 <div class="news-header">
-                        <img class="server-status-icon" src="assets/images/icon.png">
+                        <img class="server-status-icon" src="assets/images/icon/icon.png">
                         <div class="header-text">
                             <div class="title">Error.</div>
                         </div>
                         <div class="date">
-                            <div class="day">1</div>
-                            <div class="month">Janvier</div>
+                            <div class="day">${date.day}</div>
+                            <div class="month">${date.month}</div>
                         </div>
                     </div>
                     <div class="news-content">
@@ -211,15 +217,15 @@ class Home {
             timeout: 10000,
             path: `${await appdata()}/${process.platform == 'darwin' ? this.config.dataDirectory : `.${this.config.dataDirectory}`}`,
             instance: options.name,
-            version: options.loadder.minecraft_version,
+            version: options.loader.minecraft_version,
             detached: configClient.launcher_config.closeLauncher == "close-all" ? false : true,
             downloadFileMultiple: configClient.launcher_config.download_multi,
             intelEnabledMac: configClient.launcher_config.intelEnabledMac,
 
             loader: {
-                type: options.loadder.loadder_type,
-                build: options.loadder.loadder_version,
-                enable: options.loadder.loadder_type == 'none' ? false : true
+                type: options.loader.loader_type,
+                build: options.loader.loader_version,
+                enable: options.loader.loader_type == 'none' ? false : true
             },
 
             verify: options.verify,

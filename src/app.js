@@ -1,6 +1,13 @@
+/**
+ * @author Luuxis
+ * Luuxis License v1.0 (voir fichier LICENSE pour les détails en FR/EN)
+ */
+
 const { app, ipcMain, nativeTheme } = require('electron');
 const { Microsoft } = require('minecraft-java-core');
 const { autoUpdater } = require('electron-updater')
+
+let store = null;
 
 const path = require('path');
 const fs = require('fs');
@@ -20,7 +27,18 @@ if (dev) {
 }
 
 if (!app.requestSingleInstanceLock()) app.quit();
-else app.whenReady().then(() => {
+else app.whenReady().then(async () => {
+    const { default: Store } = await import('electron-store');
+    const userDataPath = app.getPath('userData');
+
+    store = new Store({
+        name: 'launcher-data',
+        cwd: `${userDataPath}${dev ? '/..' : '/databases'}`,
+        encryptionKey: dev ? undefined : 'selvania-launcher-key',
+    });
+
+    ipcMain.handle('store:get', (_, key) => store.get(key));
+    ipcMain.handle('store:set', (_, key, value) => store.set(key, value));
     if (dev) return MainWindow.createWindow()
     UpdateWindow.createWindow()
 });

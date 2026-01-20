@@ -1,3 +1,7 @@
+/**
+ * @author Luuxis
+ * Luuxis License v1.0 (voir fichier LICENSE pour les détails en FR/EN)
+ */
 // import panel
 import Login from './panels/login.js';
 import Home from './panels/home.js';

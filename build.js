@@ -64,7 +64,7 @@ class Index {
                 generateUpdatesFilesForAllChannels: false,
                 appId: preductname,
                 productName: preductname,
-                copyright: `Copyright © 2029-${new Date().getFullYear()} RaphCorp`,
+                copyright: `Copyright © 2026-${new Date().getFullYear()} RaphCorp`,
                 artifactName: "${productName}-${os}-${arch}.${ext}",
                 extraMetadata: { main: 'app/app.js' },
                 files: ["app/**/*", "package.json", "LICENSE.md"],

@@ -1,15 +1,15 @@
 {
-    "name": "Selvania-Launcher",
-    "preductname": "Selvania Launcher",
-    "version": "2.2.2",
-    "description": "Launcher Mincraft pour le serveur Selvania",
+    "name": "RaphNetwork-Launcher",
+    "preductname": "RaphNetwork Launcher",
+    "version": "1.0.5",
+    "description": "Le launcher officiel pour RaphNetwork et la RaphCorp Interactive.",
     "main": "src/app.js",
     "author": {
-        "name": "luuxis, Inc.",
-        "email": "contact@luuxis.fr",
-        "url": "https://github.com/luuxis"
+        "name": "RaphCorp Interactive",
+        "email": "admin@raphhosting.com",
+        "url": "https://raphhosting.com"
     },
-    "url": "http://luuxcraft.fr/api/user/bb8f5247-1d38-41bb-ab6d-3200471a06b2",
+    "url": "http://launcher.raphnetwork.raphhosting.com/",
     "scripts": {
         "start": "cross-env-shell NODE_ENV=dev electron .",
         "dev": "cross-env-shell DEV_TOOL=open nodemon --exec npm start",
@@ -39,6 +39,6 @@
     },
     "repository": {
         "type": "git",
-        "url": "git+https://github.com/luuxis/Selvania-Launcher.git"
+        "url": "git+https://github.com/RaphCorp/raphnetwork-launcher.git"
     }
 }

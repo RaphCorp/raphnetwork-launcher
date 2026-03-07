@@ -98,6 +98,8 @@ final class FileManager
             throw new RuntimeException('Parent directory does not exist');
         }
 
+        self::assertWritable($directory, 'Directory');
+
         if (file_put_contents($target, $content, LOCK_EX) === false) {
             throw new RuntimeException('Unable to write file');
         }
@@ -110,7 +112,7 @@ final class FileManager
         }
 
         $fileName = (string) ($uploadedFile['name'] ?? '');
-        if ($fileName === '' || preg_match('/[\\\/]/', $fileName)) {
+        if ($fileName === '' || strpbrk($fileName, "/\\") !== false || strpos($fileName, "\0") !== false) {
             throw new RuntimeException('Invalid upload filename');
         }
 
@@ -127,8 +129,12 @@ final class FileManager
             throw new RuntimeException('Upload directory does not exist');
         }
 
+        self::assertWritable($parent, 'Upload directory');
+
         if (!move_uploaded_file($tmpPath, $target)) {
-            throw new RuntimeException('Unable to store uploaded file');
+            $lastError = error_get_last();
+            $detail = is_array($lastError) && isset($lastError['message']) ? (' (' . $lastError['message'] . ')') : '';
+            throw new RuntimeException('Unable to store uploaded file. Check filesystem permissions for: ' . $parent . $detail);
         }
     }
 
@@ -138,6 +144,13 @@ final class FileManager
         if (is_dir($target)) {
             return;
         }
+
+        $parent = dirname($target);
+        if (!is_dir($parent)) {
+            throw new RuntimeException('Parent directory does not exist: ' . $parent);
+        }
+
+        self::assertWritable($parent, 'Parent directory');
 
         if (!mkdir($target, 0750, true) && !is_dir($target)) {
             throw new RuntimeException('Unable to create directory');
@@ -159,6 +172,10 @@ final class FileManager
         if (is_dir($target)) {
             self::deleteDirectoryRecursively($target);
             return;
+        }
+
+        if (!is_writable($target)) {
+            self::assertWritable(dirname($target), 'Parent directory');
         }
 
         if (!unlink($target)) {
@@ -191,6 +208,20 @@ final class FileManager
 
         if (!rmdir($directory)) {
             throw new RuntimeException('Unable to delete directory');
+        }
+    }
+
+    private static function assertWritable(string $path, string $label): void
+    {
+        if (is_writable($path)) {
+            return;
+        }
+
+        @chmod($path, 0775);
+        clearstatcache(true, $path);
+
+        if (!is_writable($path)) {
+            throw new RuntimeException($label . ' is not writable by PHP: ' . $path . '. Adjust owner/group permissions.');
         }
     }
 

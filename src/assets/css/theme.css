@@ -1,43 +1,43 @@
 .global {
-    --element-color: #74cb5d;
-    --element-color-strong: #5aa941;
-    --element-color-soft: #8dd479;
+    --element-color: #7eaac4;
+    --element-color-strong: #5f869f;
+    --element-color-soft: #9ebfd3;
     --danger-color: #ff6d6d;
     --warning-color: #ffbb54;
-    --success-color: #63d16f;
+    --success-color: #78be8a;
     --transition: all 0.24s ease;
     --transition-slow: all 0.4s ease;
     --radius-sm: 10px;
     --radius-md: 14px;
     --radius-lg: 20px;
-    --dark-color: #121b13;
-    --light-color: #f1f5ed;
+    --dark-color: #121a21;
+    --light-color: #f1f5f8;
 }
 
 .dark {
-    --color: #f2f7ef;
-    --text-muted: #b6c6b1;
-    --background: #111912;
-    --background-element: #1d2b20;
-    --background-transparent: rgba(16, 26, 18, 0.82);
-    --surface-soft: rgba(37, 51, 39, 0.9);
-    --surface-strong: rgba(26, 36, 28, 0.95);
-    --outline: rgba(123, 174, 102, 0.28);
-    --outline-strong: rgba(123, 174, 102, 0.5);
-    --shadow: rgba(1, 3, 1, 0.52);
+    --color: #eef3f7;
+    --text-muted: #a8b4bf;
+    --background: #0f1419;
+    --background-element: #1a242d;
+    --background-transparent: rgba(15, 22, 29, 0.82);
+    --surface-soft: rgba(32, 44, 54, 0.9);
+    --surface-strong: rgba(23, 32, 40, 0.95);
+    --outline: rgba(128, 151, 168, 0.3);
+    --outline-strong: rgba(128, 151, 168, 0.52);
+    --shadow: rgba(1, 4, 8, 0.55);
     --svg-color: brightness(0) saturate(100%) invert(100%) sepia(55%) saturate(23%) hue-rotate(236deg) brightness(108%) contrast(92%);
 }
 
 .light {
-    --color: #1c281a;
-    --text-muted: #4c6450;
-    --background: #eef4e8;
-    --background-element: #d9e6cf;
-    --background-transparent: rgba(235, 244, 228, 0.86);
-    --surface-soft: rgba(223, 236, 211, 0.92);
-    --surface-strong: rgba(208, 227, 192, 0.95);
-    --outline: rgba(66, 120, 44, 0.22);
-    --outline-strong: rgba(66, 120, 44, 0.4);
-    --shadow: rgba(126, 149, 114, 0.26);
+    --color: #1e2a35;
+    --text-muted: #506170;
+    --background: #edf2f7;
+    --background-element: #d9e3ec;
+    --background-transparent: rgba(237, 242, 247, 0.86);
+    --surface-soft: rgba(221, 230, 239, 0.92);
+    --surface-strong: rgba(208, 220, 231, 0.95);
+    --outline: rgba(90, 112, 132, 0.24);
+    --outline-strong: rgba(90, 112, 132, 0.42);
+    --shadow: rgba(109, 126, 141, 0.24);
     --svg-color: brightness(0) saturate(100%) invert(0%) sepia(5%) saturate(1719%) hue-rotate(357deg) brightness(94%) contrast(84%);
 }

@@ -64,8 +64,8 @@
 .active-settings-BTN {
     border-color: var(--element-color);
     color: var(--color);
-    background: rgba(112, 193, 81, 0.24);
-    box-shadow: 0 0 0 0 rgba(116, 203, 93, 0.32);
+    background: rgba(126, 173, 203, 0.24);
+    box-shadow: 0 0 0 0 rgba(129, 177, 207, 0.32);
     animation: active-tab-pulse 2.1s ease infinite;
 }
 
@@ -102,7 +102,7 @@
     border-radius: 12px;
     text-align: center;
     border: 1px solid var(--outline);
-    background: linear-gradient(160deg, rgba(118, 194, 92, 0.2), rgba(25, 45, 27, 0.2));
+    background: linear-gradient(160deg, rgba(129, 178, 208, 0.2), rgba(34, 49, 63, 0.22));
     color: var(--color);
 }
 
@@ -177,7 +177,7 @@
 
 .account-select {
     border-color: var(--element-color);
-    background: rgba(112, 193, 81, 0.2);
+    background: rgba(126, 173, 203, 0.2);
 }
 
 .accounts-list #add {
@@ -287,7 +287,7 @@
     transition: var(--transition);
     border-radius: 999px;
     cursor: pointer;
-    box-shadow: 0 0 0 0 rgba(116, 203, 93, 0.35);
+    box-shadow: 0 0 0 0 rgba(129, 177, 207, 0.35);
     animation: slider-pulse 2.8s ease infinite;
 }
 
@@ -345,7 +345,7 @@
 .input-resolution:focus,
 .input-max-files:focus {
     border-color: var(--outline-strong);
-    box-shadow: 0 0 0 4px rgba(117, 200, 91, 0.17);
+    box-shadow: 0 0 0 4px rgba(126, 173, 203, 0.2);
 }
 
 .java-path-input-text {
@@ -367,7 +367,7 @@
 .max-files-btn {
     padding: 0.55rem 0.9rem;
     background: linear-gradient(180deg, var(--element-color-soft), var(--element-color-strong));
-    color: #0f1c0b;
+    color: #0f1a22;
     border-radius: 10px;
     cursor: pointer;
     font-size: 0.82rem;
@@ -424,12 +424,12 @@
 
 .theme-btn-clair {
     background: var(--light-color);
-    color: #1f321a;
+    color: #243645;
 }
 
 .theme-btn-sombre {
-    background: #172018;
-    color: #eff7ea;
+    background: #19232c;
+    color: #edf3f7;
 }
 
 .theme-btn-auto {
@@ -439,7 +439,7 @@
 
 .active-theme {
     border: 2px solid var(--element-color);
-    box-shadow: 0 0 0 0 rgba(116, 203, 93, 0.35);
+    box-shadow: 0 0 0 0 rgba(129, 177, 207, 0.35);
     animation: active-tab-pulse 2.1s ease infinite;
 }
 
@@ -469,8 +469,8 @@
 .active-close {
     border-color: var(--element-color);
     color: var(--color);
-    background: rgba(112, 193, 81, 0.2);
-    box-shadow: 0 0 0 0 rgba(116, 203, 93, 0.35);
+    background: rgba(126, 173, 203, 0.2);
+    box-shadow: 0 0 0 0 rgba(129, 177, 207, 0.35);
     animation: active-tab-pulse 2.1s ease infinite;
 }
 
@@ -486,15 +486,15 @@
 
 @keyframes active-tab-pulse {
     0% {
-        box-shadow: 0 0 0 0 rgba(116, 203, 93, 0.35);
+        box-shadow: 0 0 0 0 rgba(129, 177, 207, 0.35);
     }
 
     70% {
-        box-shadow: 0 0 0 8px rgba(116, 203, 93, 0);
+        box-shadow: 0 0 0 8px rgba(129, 177, 207, 0);
     }
 
     100% {
-        box-shadow: 0 0 0 0 rgba(116, 203, 93, 0);
+        box-shadow: 0 0 0 0 rgba(129, 177, 207, 0);
     }
 }
 
@@ -524,15 +524,15 @@
 
 @keyframes slider-pulse {
     0% {
-        box-shadow: 0 0 0 0 rgba(116, 203, 93, 0.35);
+        box-shadow: 0 0 0 0 rgba(129, 177, 207, 0.35);
     }
 
     70% {
-        box-shadow: 0 0 0 7px rgba(116, 203, 93, 0);
+        box-shadow: 0 0 0 7px rgba(129, 177, 207, 0);
     }
 
     100% {
-        box-shadow: 0 0 0 0 rgba(116, 203, 93, 0);
+        box-shadow: 0 0 0 0 rgba(129, 177, 207, 0);
     }
 }
 

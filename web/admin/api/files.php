@@ -43,10 +43,15 @@ if ($action === 'list') {
         admin_json_response(['success' => false, 'error' => $exception->getMessage()], 422);
     }
 
+    $cwdAbsolute = $basePath . ($path === '' ? '' : '/' . $path);
+    $resolvedCwd = realpath($cwdAbsolute);
+    $cwdWritable = $resolvedCwd !== false ? is_writable($resolvedCwd) : false;
+
     admin_json_response([
         'success' => true,
         'cwd' => $path,
         'items' => $items,
+        'writable' => $cwdWritable,
     ]);
 }
 
@@ -143,3 +148,4 @@ if ($action === 'delete') {
 }
 
 admin_json_response(['success' => false, 'error' => 'Unknown action'], 400);
+

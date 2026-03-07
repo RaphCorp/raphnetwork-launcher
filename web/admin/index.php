@@ -7,7 +7,7 @@ admin_security_headers();
 
 $currentUser = Auth::currentUser();
 $authenticated = $currentUser !== null && Permissions::canAccessAdminPanel($currentUser);
-$validSections = ['overview', 'instances', 'users', 'files', 'permissions', 'settings'];
+$validSections = ['overview', 'instances', 'users', 'files', 'permissions', 'launcher', 'settings'];
 $initialSection = (string) ($_GET['section'] ?? 'overview');
 if (!in_array($initialSection, $validSections, true)) {
     $initialSection = 'overview';
@@ -18,14 +18,14 @@ if (!in_array($initialSection, $validSections, true)) {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Admin Panel</title>
+    <title>RaphNetwork Launcher Administration Panel</title>
     <link rel="stylesheet" href="assets/admin.css">
 </head>
 <body>
 <div id="app" class="app-shell">
     <section id="loginView" class="login-view<?php echo $authenticated ? ' hidden' : ''; ?>">
         <div class="login-card">
-            <h1>Admin Panel</h1>
+            <h1>RaphNetwork Launcher Administration Panel</h1>
             <p>Secure access required</p>
             <form id="loginForm">
                 <label>
@@ -44,13 +44,15 @@ if (!in_array($initialSection, $validSections, true)) {
 
     <section id="adminView" class="admin-view<?php echo $authenticated ? '' : ' hidden'; ?>">
         <aside class="sidebar">
-            <div class="brand">Raph Admin</div>
+            <div class="brand">RaphNetwork Launcher Administration Panel</div>
+            <div class="brand-sub">Control center</div>
             <nav id="sidebarNav">
                 <button data-section="overview" class="active">Overview</button>
                 <button data-section="instances">Instances</button>
                 <button data-section="users">Users</button>
                 <button data-section="files">File Management</button>
                 <button data-section="permissions">Permissions / Roles</button>
+                <button data-section="launcher">Launcher Content</button>
                 <button data-section="settings">System Settings</button>
             </nav>
         </aside>
@@ -69,10 +71,25 @@ if (!in_array($initialSection, $validSections, true)) {
             <section id="section-users" class="panel"></section>
             <section id="section-files" class="panel"></section>
             <section id="section-permissions" class="panel"></section>
+            <section id="section-launcher" class="panel"></section>
             <section id="section-settings" class="panel"></section>
         </main>
     </section>
 </div>
+
+<div id="modalRoot" class="modal-root hidden" aria-hidden="true">
+    <div class="modal-overlay" data-modal-close="1"></div>
+    <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
+        <div class="modal-head">
+            <h3 id="modalTitle">Dialog</h3>
+            <button id="modalCloseBtn" class="icon-btn" type="button" aria-label="Close">x</button>
+        </div>
+        <div id="modalBody" class="modal-body"></div>
+    </div>
+</div>
+
+<div id="toastStack" class="toast-stack" aria-live="polite" aria-atomic="true"></div>
+
 <script>
 window.__ADMIN_BOOTSTRAP__ = {
     authenticated: <?php echo $authenticated ? 'true' : 'false'; ?>,

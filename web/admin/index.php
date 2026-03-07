@@ -19,7 +19,7 @@ if (!in_array($initialSection, $validSections, true)) {
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>RaphNetwork Launcher Administration Panel</title>
-    <link rel="stylesheet" href="assets/admin.css">
+    <link rel="stylesheet" href="assets/admin.css?v=<?php echo urlencode((string) (@filemtime(__DIR__ . "/assets/admin.css") ?: time())); ?>">
 </head>
 <body>
 <div id="app" class="app-shell">
@@ -97,6 +97,6 @@ window.__ADMIN_BOOTSTRAP__ = {
     initialSection: <?php echo json_encode($initialSection, JSON_UNESCAPED_SLASHES); ?>
 };
 </script>
-<script src="assets/admin.js"></script>
+<script src="assets/admin.js?v=<?php echo urlencode((string) (@filemtime(__DIR__ . "/assets/admin.js") ?: time())); ?>"></script>
 </body>
 </html>

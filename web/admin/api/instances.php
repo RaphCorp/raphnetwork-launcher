@@ -61,7 +61,6 @@ $ensureUserAssignments = static function (string $instanceId, array $assignedUse
 };
 
 if ($method === 'GET') {
-    admin_require_permission($currentUser, 'instance.view');
 
     $instanceId = (string) ($_GET['id'] ?? '');
     if ($instanceId !== '') {
@@ -73,6 +72,8 @@ if ($method === 'GET') {
         if (!Permissions::canAccessInstance($currentUser, $instance)) {
             admin_json_response(['success' => false, 'error' => 'Forbidden'], 403);
         }
+
+        admin_require_permission($currentUser, 'instance.view', $instanceId);
 
         admin_json_response(['success' => true, 'instance' => $instance]);
     }
@@ -165,7 +166,6 @@ if ($method === 'POST') {
 }
 
 if ($method === 'PUT' || $method === 'PATCH') {
-    admin_require_permission($currentUser, 'instance.manage');
     admin_require_csrf_for_mutation($method);
 
     $instanceId = (string) ($body['id'] ?? ($_GET['id'] ?? ''));
@@ -183,6 +183,8 @@ if ($method === 'PUT' || $method === 'PATCH') {
     if (!Permissions::canAccessInstance($currentUser, $instance)) {
         admin_json_response(['success' => false, 'error' => 'Forbidden'], 403);
     }
+
+    admin_require_permission($currentUser, 'instance.manage', $instanceId);
 
     try {
         if (array_key_exists('name', $body)) {
@@ -242,7 +244,6 @@ if ($method === 'PUT' || $method === 'PATCH') {
 }
 
 if ($method === 'DELETE') {
-    admin_require_permission($currentUser, 'instance.delete');
     admin_require_csrf_for_mutation($method);
 
     $settings = DataStore::loadSettings();
@@ -265,6 +266,8 @@ if ($method === 'DELETE') {
     if (!Permissions::canAccessInstance($currentUser, $instance)) {
         admin_json_response(['success' => false, 'error' => 'Forbidden'], 403);
     }
+
+    admin_require_permission($currentUser, 'instance.delete', $instanceId);
 
     $removeFiles = Validator::boolValue($body['remove_files'] ?? false);
 

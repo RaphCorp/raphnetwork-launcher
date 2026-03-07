@@ -8,7 +8,7 @@ final class Permissions
     public const ROLE_INSTANCE_ADMIN = 'INSTANCE_ADMIN';
     public const ROLE_USER = 'USER';
 
-    private const ROLE_PERMISSIONS = [
+    private const BUILTIN_ROLE_PERMISSIONS = [
         self::ROLE_SUPER_ADMIN => ['*'],
         self::ROLE_INSTANCE_ADMIN => [
             'admin.access',
@@ -41,7 +41,7 @@ final class Permissions
         return self::ALL_PERMISSIONS;
     }
 
-    public static function allRoles(): array
+    public static function builtinRoles(): array
     {
         return [
             self::ROLE_SUPER_ADMIN,
@@ -50,9 +50,55 @@ final class Permissions
         ];
     }
 
+    public static function allRoles(): array
+    {
+        $map = self::rolePermissionsMap();
+        $roles = [];
+
+        foreach (self::builtinRoles() as $builtinRole) {
+            if (isset($map[$builtinRole])) {
+                $roles[] = $builtinRole;
+                unset($map[$builtinRole]);
+            }
+        }
+
+        $customRoles = array_keys($map);
+        sort($customRoles, SORT_STRING);
+
+        return array_merge($roles, $customRoles);
+    }
+
     public static function rolePermissions(string $role): array
     {
-        return self::ROLE_PERMISSIONS[$role] ?? [];
+        $map = self::rolePermissionsMap();
+        return $map[$role] ?? [];
+    }
+
+    public static function roleMetadata(): array
+    {
+        $metadata = [];
+        foreach (self::allRoles() as $role) {
+            $builtin = self::isBuiltinRole($role);
+
+            $metadata[$role] = [
+                'permissions' => self::rolePermissions($role),
+                'builtin' => $builtin,
+                'editable' => $role !== self::ROLE_SUPER_ADMIN,
+                'deletable' => !$builtin,
+            ];
+        }
+
+        return $metadata;
+    }
+
+    public static function isBuiltinRole(string $role): bool
+    {
+        return in_array($role, self::builtinRoles(), true);
+    }
+
+    public static function roleExists(string $role): bool
+    {
+        return in_array($role, self::allRoles(), true);
     }
 
     public static function isRoot(array $user): bool
@@ -62,7 +108,7 @@ final class Permissions
 
     public static function canAccessAdminPanel(array $user): bool
     {
-        return self::hasPermission($user, 'admin.access');
+        return self::hasPermission($user, 'admin.access') || self::hasScopedAdminAccess($user);
     }
 
     public static function hasPermission(array $user, string $permission, ?string $instanceId = null): bool
@@ -145,6 +191,92 @@ final class Permissions
         }
 
         return array_values(array_unique($permissions));
+    }
+
+    private static function hasScopedAdminAccess(array $user): bool
+    {
+        $instancePermissionMap = is_array($user['instance_permissions'] ?? null) ? $user['instance_permissions'] : [];
+        if ($instancePermissionMap === []) {
+            return false;
+        }
+
+        foreach ($instancePermissionMap as $instanceRules) {
+            if (!is_array($instanceRules)) {
+                continue;
+            }
+
+            foreach ($instanceRules as $rule) {
+                if (!is_string($rule) || $rule === '') {
+                    continue;
+                }
+
+                if (
+                    self::permissionMatch('instance.view', $rule)
+                    || self::permissionMatch('instance.manage', $rule)
+                    || self::permissionMatch('instance.delete', $rule)
+                    || self::permissionMatch('files.read', $rule)
+                    || self::permissionMatch('files.write', $rule)
+                    || self::permissionMatch('files.delete', $rule)
+                ) {
+                    return true;
+                }
+            }
+        }
+
+        return false;
+    }
+
+    private static function rolePermissionsMap(): array
+    {
+        $map = self::BUILTIN_ROLE_PERMISSIONS;
+        $customRoles = self::customRolesFromSettings();
+
+        foreach ($customRoles as $role => $permissions) {
+            if ($role === self::ROLE_SUPER_ADMIN) {
+                continue;
+            }
+            $map[$role] = $permissions;
+        }
+
+        // Super admin must always retain full access.
+        $map[self::ROLE_SUPER_ADMIN] = ['*'];
+
+        return $map;
+    }
+
+    private static function customRolesFromSettings(): array
+    {
+        if (!class_exists('DataStore')) {
+            return [];
+        }
+
+        $settings = DataStore::loadSettings();
+        $raw = $settings['custom_roles'] ?? [];
+        if (!is_array($raw)) {
+            return [];
+        }
+
+        $roles = [];
+        foreach ($raw as $role => $permissions) {
+            if (!is_string($role) || !preg_match('/^[A-Z][A-Z0-9_]{2,63}$/', $role)) {
+                continue;
+            }
+
+            if (!is_array($permissions)) {
+                continue;
+            }
+
+            $sanitized = [];
+            foreach ($permissions as $permission) {
+                if (is_string($permission) && preg_match('/^[a-zA-Z0-9.*_-]+$/', $permission)) {
+                    $sanitized[] = $permission;
+                }
+            }
+
+            $roles[$role] = array_values(array_unique($sanitized));
+        }
+
+        return $roles;
     }
 
     private static function permissionMatch(string $required, string $rule): bool

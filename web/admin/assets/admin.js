@@ -5,12 +5,28 @@
     csrfToken: null,
     user: window.__ADMIN_BOOTSTRAP__?.user || null,
     authenticated: Boolean(window.__ADMIN_BOOTSTRAP__?.authenticated),
+    activeSection: initialSection,
+    sectionAccess: {
+      overview: true,
+      instances: true,
+      files: true,
+      users: true,
+      permissions: true,
+      launcher: true,
+      settings: true
+    },
     overview: null,
     instances: [],
     users: [],
     roles: {},
+    rolesMeta: {},
+    builtinRoles: [],
     permissions: [],
     settings: {},
+    launcher: {
+      config: {},
+      news: []
+    },
     userEditorId: null,
     file: {
       instanceId: '',
@@ -31,12 +47,18 @@
     currentUser: document.getElementById('currentUser'),
     logoutBtn: document.getElementById('logoutBtn'),
     nav: document.getElementById('sidebarNav'),
+    modalRoot: document.getElementById('modalRoot'),
+    modalTitle: document.getElementById('modalTitle'),
+    modalBody: document.getElementById('modalBody'),
+    modalCloseBtn: document.getElementById('modalCloseBtn'),
+    toastStack: document.getElementById('toastStack'),
     panels: {
       overview: document.getElementById('section-overview'),
       instances: document.getElementById('section-instances'),
       users: document.getElementById('section-users'),
       files: document.getElementById('section-files'),
       permissions: document.getElementById('section-permissions'),
+      launcher: document.getElementById('section-launcher'),
       settings: document.getElementById('section-settings')
     }
   };
@@ -53,6 +75,26 @@
   function getMultiSelectValues(selectElement) {
     if (!selectElement) return [];
     return Array.from(selectElement.selectedOptions || []).map((option) => option.value).filter(Boolean);
+  }
+
+  function parsePermissionInput(value) {
+    if (typeof value !== 'string') return [];
+
+    const tokens = value
+      .split(/[,\n;]+/)
+      .map((token) => token.trim())
+      .filter(Boolean);
+
+    const valid = tokens.filter((token) => /^[a-zA-Z0-9.*_-]+$/.test(token));
+    return Array.from(new Set(valid));
+  }
+
+  function cloneObject(value) {
+    if (!value || typeof value !== 'object' || Array.isArray(value)) {
+      return {};
+    }
+
+    return { ...value };
   }
 
   function permissionMatches(required, rules) {
@@ -144,6 +186,7 @@
       });
 
       document.getElementById('modalConfirmAction')?.addEventListener('click', () => {
+        closeModal();
         resolve(true);
       });
     });
@@ -188,22 +231,48 @@
 
     if (!response.ok || payload.success === false) {
       const error = payload.error || `Request failed (${response.status})`;
-      throw new Error(error);
+      const requestError = new Error(error);
+      requestError.status = response.status;
+      requestError.payload = payload;
+      throw requestError;
     }
 
     return payload;
   }
 
+  function isForbiddenError(error) {
+    return Number(error?.status || 0) === 403;
+  }
+
+  function isSectionAvailable(sectionName) {
+    return Boolean(els.panels[sectionName]) && state.sectionAccess[sectionName] !== false;
+  }
+
+  function getFirstAvailableSection() {
+    const orderedSections = ['overview', 'instances', 'files', 'users', 'permissions', 'launcher', 'settings'];
+    return orderedSections.find((section) => isSectionAvailable(section)) || 'overview';
+  }
+
+  function applySectionAccess() {
+    document.querySelectorAll('#sidebarNav button[data-section]').forEach((button) => {
+      const sectionName = button.dataset.section;
+      const allowed = isSectionAvailable(sectionName);
+      button.disabled = !allowed;
+      button.hidden = !allowed;
+    });
+  }
+
   function switchSection(sectionName) {
-    state.activeSection = sectionName;
+    const resolvedSection = isSectionAvailable(sectionName) ? sectionName : getFirstAvailableSection();
+    state.activeSection = resolvedSection;
 
     document.querySelectorAll('#sidebarNav button').forEach((btn) => {
-      btn.classList.toggle('active', btn.dataset.section === sectionName);
+      btn.classList.toggle('active', btn.dataset.section === resolvedSection);
     });
 
     Object.entries(els.panels).forEach(([name, panel]) => {
       if (!panel) return;
-      panel.classList.toggle('active', name === sectionName);
+      panel.classList.toggle('active', name === resolvedSection && isSectionAvailable(name));
     });
   }
 
@@ -247,7 +316,12 @@
   }
 
   function renderInstances() {
-    const userOptions = state.users.map((user) => `<option value="${escapeHtml(user.id)}">${escapeHtml(user.username)}</option>`).join('');
+    const hasUserDirectory = state.sectionAccess.users !== false && state.users.length > 0;
+    const fallbackOwnerId = String(state.user?.id || 'root');
+    const fallbackOwnerName = String(state.user?.username || fallbackOwnerId);
+    const userOptions = hasUserDirectory
+      ? state.users.map((user) => `<option value="${escapeHtml(user.id)}">${escapeHtml(user.username)}</option>`).join('')
+      : `<option value="${escapeHtml(fallbackOwnerId)}">${escapeHtml(fallbackOwnerName)}</option>`;
 
     const rows = state.instances.map((instance) => {
       const admins = Array.isArray(instance.admins) ? instance.admins.join(', ') : '';
@@ -347,30 +421,55 @@
 
         if (action === 'edit') {
           const selectedAdmins = Array.isArray(instance.admins) ? instance.admins : [];
-          const selectedAssignedUsers = state.users
-            .filter((user) => Array.isArray(user.instances) && user.instances.includes(instance.id))
-            .map((user) => user.id);
+          const selectedAssignedUsers = hasUserDirectory
+            ? state.users
+              .filter((user) => Array.isArray(user.instances) && user.instances.includes(instance.id))
+              .map((user) => user.id)
+            : selectedAdmins.filter((id) => id !== 'root');
 
-          const ownerOptions = state.users.map((user) => {
-            const selected = user.id === instance.owner ? 'selected' : '';
-            return `<option value="${escapeHtml(user.id)}" ${selected}>${escapeHtml(user.username)}</option>`;
-          }).join('');
+          const ownerOptions = hasUserDirectory
+            ? state.users.map((user) => {
+              const selected = user.id === instance.owner ? 'selected' : '';
+              return `<option value="${escapeHtml(user.id)}" ${selected}>${escapeHtml(user.username)}</option>`;
+            }).join('')
+            : `<option value="${escapeHtml(instance.owner || fallbackOwnerId)}" selected>${escapeHtml(instance.owner || fallbackOwnerName)}</option>`;
 
-          const userMultiOptions = state.users.map((user) => {
-            const isAdmin = selectedAdmins.includes(user.id) ? 'selected' : '';
-            return `<option value="${escapeHtml(user.id)}" ${isAdmin}>${escapeHtml(user.username)} (${escapeHtml(user.id)})</option>`;
-          }).join('');
+          const fallbackUserIds = Array.from(new Set([
+            ...(Array.isArray(instance.admins) ? instance.admins : []),
+            String(instance.owner || ''),
+            'root'
+          ].filter(Boolean)));
 
-          const assignedUserOptions = state.users.map((user) => {
-            const selected = selectedAssignedUsers.includes(user.id) ? 'selected' : '';
-            return `<option value="${escapeHtml(user.id)}" ${selected}>${escapeHtml(user.username)} (${escapeHtml(user.id)})</option>`;
-          }).join('');
+          const userMultiOptions = hasUserDirectory
+            ? state.users.map((user) => {
+              const isAdmin = selectedAdmins.includes(user.id) ? 'selected' : '';
+              return `<option value="${escapeHtml(user.id)}" ${isAdmin}>${escapeHtml(user.username)} (${escapeHtml(user.id)})</option>`;
+            }).join('')
+            : fallbackUserIds.map((userId) => {
+              const isAdmin = selectedAdmins.includes(userId) ? 'selected' : '';
+              return `<option value="${escapeHtml(userId)}" ${isAdmin}>${escapeHtml(userId)}</option>`;
+            }).join('');
+
+          const assignedUserOptions = hasUserDirectory
+            ? state.users.map((user) => {
+              const selected = selectedAssignedUsers.includes(user.id) ? 'selected' : '';
+              return `<option value="${escapeHtml(user.id)}" ${selected}>${escapeHtml(user.username)} (${escapeHtml(user.id)})</option>`;
+            }).join('')
+            : fallbackUserIds.map((userId) => {
+              const selected = selectedAssignedUsers.includes(userId) ? 'selected' : '';
+              return `<option value="${escapeHtml(userId)}" ${selected}>${escapeHtml(userId)}</option>`;
+            }).join('');
+
+          const userDirectoryNotice = hasUserDirectory
+            ? ''
+            : '<p class="muted">User directory is restricted for your account. You can still edit this instance using known user IDs.</p>';
 
           openModal({
             title: `Edit Instance: ${instance.name}`,
             contentHtml: `
               <form id="editInstanceModalForm" class="form-grid">
                 <input type="hidden" name="id" value="${escapeHtml(instance.id)}">
+                ${userDirectoryNotice}
                 <label>Name <input name="name" value="${escapeHtml(instance.name || '')}" required minlength="2" maxlength="64"></label>
                 <label>Owner <select name="owner">${ownerOptions}</select></label>
                 <label>Status
@@ -478,6 +577,10 @@
       return `<option value="${escapeHtml(instance.id)}" ${isSelected}>${escapeHtml(instance.name)} (${escapeHtml(instance.id)})</option>`;
     }).join('');
 
+    const roles = Object.keys(state.roles || {});
+    const roleOptionsCreate = roles.map((role) => `<option ${role === 'USER' ? 'selected' : ''}>${escapeHtml(role)}</option>`).join('');
+    const roleOptionsEdit = (selectedRole) => roles.map((role) => `<option ${selectedRole === role ? 'selected' : ''}>${escapeHtml(role)}</option>`).join('');
+
     const rows = state.users.map((user) => {
       const protectedBadge = user.protected ? '<span class="badge warn">protected</span>' : '';
       const isEditing = state.userEditorId === user.id ? '<span class="badge good">editing</span>' : '';
@@ -512,9 +615,7 @@
             <label>Password <input name="password" type="password" required minlength="8"></label>
             <label>Role
               <select name="role">
-                <option>USER</option>
-                <option>INSTANCE_ADMIN</option>
-                <option>SUPER_ADMIN</option>
+                ${roleOptionsCreate}
               </select>
             </label>
             <label>Assigned Instances
@@ -539,9 +640,7 @@
             <label>Email <input name="email" type="email" value="${escapeHtml(editingUser?.email || '')}" ${editingUser ? '' : 'disabled'}></label>
             <label>Role
               <select name="role" ${editingUser ? '' : 'disabled'}>
-                <option ${editingUser?.role === 'USER' ? 'selected' : ''}>USER</option>
-                <option ${editingUser?.role === 'INSTANCE_ADMIN' ? 'selected' : ''}>INSTANCE_ADMIN</option>
-                <option ${editingUser?.role === 'SUPER_ADMIN' ? 'selected' : ''}>SUPER_ADMIN</option>
+                ${roleOptionsEdit(editingUser?.role || 'USER')}
               </select>
             </label>
             <label>New Password (optional)
@@ -861,26 +960,67 @@
   }
 
   function renderPermissions() {
-    const roles = Object.keys(state.roles || {});
+    if (state.sectionAccess.permissions === false) {
+      els.panels.permissions.innerHTML = '<h2>Permissions / Roles</h2><div class="card"><p class="muted">This section is restricted to global administrators.</p></div>';
+      return;
+    }
+
+    const roleNames = Object.keys(state.roles || {});
+    const rolesMeta = state.rolesMeta || {};
     const allPermissions = state.permissions || [];
 
-    const matrixHeader = roles.map((role) => `<th>${escapeHtml(role)}</th>`).join('');
+    const matrixHeader = roleNames.map((role) => `<th>${escapeHtml(role)}</th>`).join('');
     const matrixRows = allPermissions.map((permission) => {
-      const columns = roles.map((role) => {
+      const columns = roleNames.map((role) => {
         const allowed = permissionMatches(permission, state.roles?.[role] || []);
         return `<td>${allowed ? '<span class="badge good">allow</span>' : '<span class="badge warn">deny</span>'}</td>`;
       }).join('');
       return `<tr><td>${escapeHtml(permission)}</td>${columns}</tr>`;
     }).join('');
 
+    const roleRows = roleNames.map((role) => {
+      const meta = rolesMeta[role] || {};
+      const permissions = Array.isArray(meta.permissions) ? meta.permissions : (state.roles?.[role] || []);
+      const badges = renderPermissionBadges(permissions);
+      const builtinBadge = meta.builtin ? '<span class="badge">built-in</span>' : '<span class="badge good">custom</span>';
+
+      return `
+        <tr>
+          <td>${escapeHtml(role)} ${builtinBadge}</td>
+          <td>${badges}</td>
+          <td class="actions">
+            <button data-role-edit="${escapeHtml(role)}" ${meta.editable === false ? 'disabled' : ''}>Edit</button>
+            <button data-role-delete="${escapeHtml(role)}" class="danger" ${meta.deletable ? '' : 'disabled'}>Delete</button>
+          </td>
+        </tr>
+      `;
+    }).join('');
+
     const userOptions = state.users.map((user) => `<option value="${escapeHtml(user.id)}">${escapeHtml(user.username)} (${escapeHtml(user.role)})</option>`).join('');
-    const instanceOptions = `<option value="">Global context</option>` + state.instances.map((instance) => `<option value="${escapeHtml(instance.id)}">${escapeHtml(instance.name)}</option>`).join('');
+    const instanceOnlyOptions = state.instances.map((instance) => `<option value="${escapeHtml(instance.id)}">${escapeHtml(instance.name)}</option>`).join('');
+    const instanceOptions = `<option value="">Global context</option>` + instanceOnlyOptions;
 
     els.panels.permissions.innerHTML = `
       <h2>Permissions / Roles</h2>
+
       <div class="card">
+        <div class="panel-head" style="margin-bottom:0.6rem;">
+          <h3 style="margin:0;">Role Manager</h3>
+          <button id="createRoleBtn" class="primary">Create Role</button>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr><th>Role</th><th>Permissions</th><th>Actions</th></tr>
+            </thead>
+            <tbody>${roleRows}</tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="card" style="margin-top:1rem;">
         <h3>Role Permission Matrix</h3>
-        <p class="muted">This matrix shows role defaults. Use the inspector to understand final permissions for one user.</p>
+        <p class="muted">This matrix shows role defaults. Use inspector and editor below for real user permissions.</p>
         <div class="table-wrap">
           <table>
             <thead>
@@ -890,6 +1030,7 @@
           </table>
         </div>
       </div>
+
       <div class="card" style="margin-top:1rem;">
         <h3>Effective Permission Inspector</h3>
         <p class="muted">Pick a user and optional instance to see exactly where permissions come from.</p>
@@ -900,14 +1041,141 @@
         </form>
         <div id="permissionEvalResult" class="grid cards"></div>
       </div>
+
+      <div class="card" style="margin-top:1rem;">
+        <h3>Quick Grant: Full Instance Power</h3>
+        <p class="muted">Granting this sets instance-scoped permissions to <code>*</code> for one instance only. It does not grant global user, role, settings, or launcher administration.</p>
+        <form id="quickInstancePowerForm" class="form-grid">
+          <label>User <select name="user_id">${userOptions}</select></label>
+          <label>Instance <select name="instance_id">${instanceOnlyOptions}</select></label>
+          <div class="modal-actions" style="grid-column:1/-1; margin-top:0; justify-content:flex-start;">
+            <button type="submit" class="primary" ${!userOptions || !instanceOnlyOptions ? 'disabled' : ''}>Grant Full Instance Power</button>
+          </div>
+        </form>
+      </div>
+
+      <div class="card" style="margin-top:1rem;">
+        <h3>Permission Editor</h3>
+        <p class="muted">Edit user-level custom permissions and optional per-instance override rules.</p>
+        <form id="permissionEditorForm" class="form-grid">
+          <label>User
+            <select name="user_id">${userOptions}</select>
+          </label>
+          <label>Instance Override Target
+            <select name="instance_id">${instanceOptions}</select>
+          </label>
+          <label style="grid-column:1/-1;">User Custom Permissions (one per line or comma-separated)
+            <textarea name="custom_permissions" placeholder="files.read&#10;files.write"></textarea>
+          </label>
+          <label style="grid-column:1/-1;">Instance Override Permissions
+            <textarea name="instance_permissions" placeholder="instance.manage&#10;files.read"></textarea>
+          </label>
+          <div class="modal-actions" style="grid-column:1/-1; margin-top:0; justify-content:flex-start;">
+            <button type="button" id="permissionEditorReloadBtn" class="subtle">Load Current Values</button>
+            <button type="submit" id="permissionEditorSaveBtn" class="primary">Save Permission Overrides</button>
+          </div>
+        </form>
+        <div id="permissionEditorPreview" class="grid cards" style="margin-top:0.5rem;"></div>
+      </div>
     `;
+
+    const openRoleEditorModal = (mode, roleName = '', initialPermissions = []) => {
+      const isCreate = mode === 'create';
+
+      openModal({
+        title: isCreate ? 'Create Role' : `Edit Role: ${roleName}`,
+        contentHtml: `
+          <form id="roleEditorForm" class="form-grid">
+            <label>Role Name
+              <input name="role" value="${escapeHtml(roleName)}" ${isCreate ? '' : 'readonly'} placeholder="MY_CUSTOM_ROLE" required>
+            </label>
+            <label style="grid-column:1/-1;">Permissions (one per line or comma-separated)
+              <textarea name="permissions">${escapeHtml((initialPermissions || []).join('\n'))}</textarea>
+            </label>
+            <div class="modal-actions" style="grid-column:1/-1;">
+              <button type="button" id="cancelRoleEditor" class="subtle">Cancel</button>
+              <button type="submit" class="primary">${isCreate ? 'Create Role' : 'Save Role'}</button>
+            </div>
+          </form>
+        `
+      });
+
+      document.getElementById('cancelRoleEditor')?.addEventListener('click', closeModal);
+      document.getElementById('roleEditorForm')?.addEventListener('submit', async (event) => {
+        event.preventDefault();
+        const form = event.currentTarget;
+        const role = String(form.role.value || '').trim().toUpperCase();
+        const permissions = parsePermissionInput(form.permissions.value);
+
+        try {
+          await api('api/permissions.php', {
+            method: isCreate ? 'POST' : 'PATCH',
+            body: {
+              action: isCreate ? 'role.create' : 'role.update',
+              role,
+              permissions
+            }
+          });
+          closeModal();
+          await refreshData();
+          switchSection('permissions');
+          status(isCreate ? 'Role created' : 'Role updated');
+        } catch (error) {
+          status(error.message, true);
+        }
+      });
+    };
+
+    document.getElementById('createRoleBtn')?.addEventListener('click', () => {
+      openRoleEditorModal('create', '', []);
+    });
+
+    els.panels.permissions.querySelectorAll('[data-role-edit]').forEach((button) => {
+      button.addEventListener('click', () => {
+        const role = button.dataset.roleEdit;
+        const rolePermissions = state.roles?.[role] || [];
+        openRoleEditorModal('edit', role, rolePermissions);
+      });
+    });
+
+    els.panels.permissions.querySelectorAll('[data-role-delete]').forEach((button) => {
+      button.addEventListener('click', async () => {
+        const role = button.dataset.roleDelete;
+        if (!role) return;
+
+        const confirmed = await askConfirm({
+          title: 'Delete Role',
+          message: `Delete role ${role}? Users with this role will be set to USER.`,
+          confirmText: 'Delete Role',
+          danger: true
+        });
+
+        if (!confirmed) return;
+
+        try {
+          await api('api/permissions.php', {
+            method: 'DELETE',
+            body: {
+              action: 'role.delete',
+              role
+            }
+          });
+          await refreshData();
+          switchSection('permissions');
+          status('Role deleted');
+        } catch (error) {
+          status(error.message, true);
+        }
+      });
+    });
 
     document.getElementById('permissionEvalForm')?.addEventListener('submit', async (event) => {
       event.preventDefault();
       const form = event.currentTarget;
       const payload = {
         user_id: form.user_id.value,
-        instance_id: form.instance_id.value
+        instance_id: form.instance_id.value,
+        action: 'inspect'
       };
 
       try {
@@ -952,9 +1220,178 @@
         document.getElementById('permissionEvalResult').innerHTML = `<article class="card"><h3>Error</h3><p class="muted">${escapeHtml(error.message)}</p></article>`;
       }
     });
+
+    document.getElementById('quickInstancePowerForm')?.addEventListener('submit', async (event) => {
+      event.preventDefault();
+      const form = event.currentTarget;
+      const userId = String(form.user_id?.value || '');
+      const instanceId = String(form.instance_id?.value || '');
+
+      if (!userId || !instanceId) {
+        status('User and instance are required for quick grant', true);
+        return;
+      }
+
+      const selectedUser = state.users.find((user) => user.id === userId);
+      if (!selectedUser) {
+        status('Selected user not found', true);
+        return;
+      }
+
+      if (selectedUser.id === 'root' || selectedUser.username === 'root' || selectedUser.protected) {
+        status('Root account permissions cannot be modified', true);
+        return;
+      }
+
+      const instancePermissionsMap = cloneObject(selectedUser.instance_permissions);
+      instancePermissionsMap[instanceId] = ['*'];
+
+      const assignedInstances = Array.isArray(selectedUser.instances) ? [...selectedUser.instances] : [];
+      if (!assignedInstances.includes(instanceId)) {
+        assignedInstances.push(instanceId);
+      }
+
+      const adminScope = getAdminScopeForUser(userId);
+      if (!adminScope.includes(instanceId)) {
+        adminScope.push(instanceId);
+      }
+
+      try {
+        await api('api/users.php', {
+          method: 'PATCH',
+          body: {
+            id: userId,
+            instances: assignedInstances,
+            admin_instance_ids: adminScope,
+            instance_permissions: instancePermissionsMap
+          }
+        });
+
+        await refreshData();
+        switchSection('permissions');
+        status('Full instance power granted for selected instance');
+      } catch (error) {
+        status(error.message, true);
+      }
+    });
+
+    const permissionEditorForm = document.getElementById('permissionEditorForm');
+    const editorUserSelect = permissionEditorForm?.querySelector('select[name="user_id"]');
+    const editorInstanceSelect = permissionEditorForm?.querySelector('select[name="instance_id"]');
+    const editorCustomInput = permissionEditorForm?.querySelector('textarea[name="custom_permissions"]');
+    const editorInstanceInput = permissionEditorForm?.querySelector('textarea[name="instance_permissions"]');
+    const editorSaveBtn = document.getElementById('permissionEditorSaveBtn');
+    const editorPreview = document.getElementById('permissionEditorPreview');
+
+    const loadEditorValues = async () => {
+      if (!editorUserSelect || !editorCustomInput || !editorInstanceInput || !editorPreview || !editorSaveBtn) {
+        return;
+      }
+
+      const userId = editorUserSelect.value;
+      const instanceId = editorInstanceSelect?.value || '';
+      const selectedUser = state.users.find((user) => user.id === userId);
+      const isProtected = Boolean(selectedUser?.protected) || selectedUser?.id === 'root' || selectedUser?.username === 'root';
+
+      try {
+        const result = await api('api/permissions.php', {
+          method: 'POST',
+          body: {
+            action: 'inspect',
+            user_id: userId,
+            instance_id: instanceId
+          }
+        });
+
+        editorCustomInput.value = (result.custom_permissions || []).join('\n');
+        editorInstanceInput.value = (result.instance_permissions || []).join('\n');
+        editorInstanceInput.disabled = !instanceId || isProtected;
+
+        editorSaveBtn.disabled = isProtected;
+        editorSaveBtn.textContent = isProtected ? 'Root account is immutable' : 'Save Permission Overrides';
+
+        editorPreview.innerHTML = `
+          <article class="card">
+            <h3>Role Defaults</h3>
+            <p>${renderPermissionBadges(result.role_permissions || [])}</p>
+          </article>
+          <article class="card">
+            <h3>User Custom</h3>
+            <p>${renderPermissionBadges(result.custom_permissions || [])}</p>
+          </article>
+          <article class="card">
+            <h3>Instance Custom</h3>
+            <p>${renderPermissionBadges(result.instance_permissions || [])}</p>
+          </article>
+        `;
+      } catch (error) {
+        editorPreview.innerHTML = `<article class="card"><h3>Error</h3><p class="muted">${escapeHtml(error.message)}</p></article>`;
+      }
+    };
+
+    document.getElementById('permissionEditorReloadBtn')?.addEventListener('click', loadEditorValues);
+    editorUserSelect?.addEventListener('change', loadEditorValues);
+    editorInstanceSelect?.addEventListener('change', loadEditorValues);
+
+    permissionEditorForm?.addEventListener('submit', async (event) => {
+      event.preventDefault();
+      if (!editorUserSelect || !editorCustomInput || !editorInstanceInput) return;
+
+      const userId = editorUserSelect.value;
+      const instanceId = editorInstanceSelect?.value || '';
+      const selectedUser = state.users.find((user) => user.id === userId);
+
+      if (!selectedUser) {
+        status('Selected user not found', true);
+        return;
+      }
+
+      if (selectedUser.id === 'root' || selectedUser.username === 'root' || selectedUser.protected) {
+        status('Root account permissions cannot be modified', true);
+        return;
+      }
+
+      const globalPermissions = parsePermissionInput(editorCustomInput.value);
+      const instancePermissionsMap = cloneObject(selectedUser.instance_permissions);
+
+      if (instanceId) {
+        const instancePermissions = parsePermissionInput(editorInstanceInput.value);
+        if (instancePermissions.length > 0) {
+          instancePermissionsMap[instanceId] = instancePermissions;
+        } else {
+          delete instancePermissionsMap[instanceId];
+        }
+      }
+
+      try {
+        await api('api/users.php', {
+          method: 'PATCH',
+          body: {
+            id: userId,
+            instances: Array.isArray(selectedUser.instances) ? selectedUser.instances : [],
+            admin_instance_ids: getAdminScopeForUser(userId),
+            permissions: globalPermissions,
+            instance_permissions: instancePermissionsMap
+          }
+        });
+
+        await refreshData();
+        switchSection('permissions');
+        status('Permission overrides updated');
+      } catch (error) {
+        status(error.message, true);
+      }
+    });
+
+    loadEditorValues();
   }
 
   function renderLauncher() {
+    const launcherPanel = els.panels.launcher;
+    if (!launcherPanel) {
+      return;
+    }
+
     const config = state.launcher?.config || {};
     const news = Array.isArray(state.launcher?.news) ? state.launcher.news : [];
 
@@ -985,7 +1422,7 @@
       `;
     }).join('');
 
-    els.panels.launcher.innerHTML = `
+    launcherPanel.innerHTML = `
       <div class="panel-head">
         <h2>Launcher Content</h2>
         <button id="refreshLauncherBtn" class="subtle">Reload</button>
@@ -1126,7 +1563,7 @@
       });
     });
 
-    els.panels.launcher.querySelectorAll('[data-news-action]').forEach((button) => {
+    launcherPanel.querySelectorAll('[data-news-action]').forEach((button) => {
       button.addEventListener('click', async () => {
         const action = button.dataset.newsAction;
         const index = Number(button.dataset.newsIndex);
@@ -1299,22 +1736,93 @@
   async function refreshData() {
     try {
       status('Loading admin data...');
-      const [overview, instances, users, permissions, settings, launcher] = await Promise.all([
+
+      const sectionDefaults = {
+        overview: true,
+        instances: true,
+        files: true,
+        users: true,
+        permissions: true,
+        launcher: true,
+        settings: true
+      };
+      state.sectionAccess = { ...sectionDefaults };
+
+      const [overview, instances] = await Promise.all([
         api('api/overview.php'),
-        api('api/instances.php'),
-        api('api/users.php'),
-        api('api/permissions.php'),
-        api('api/settings.php'),
-        api('api/launcher.php')
+        api('api/instances.php')
       ]);
 
-      state.overview = overview.overview;
+      state.overview = overview.overview || {};
       state.instances = instances.instances || [];
-      state.users = users.users || [];
-      state.roles = permissions.roles || {};
-      state.permissions = permissions.permissions || [];
-      state.settings = settings.settings || {};
-      state.launcher = launcher.launcher || { config: {}, news: [] };
+
+      const restrictedFetches = [
+        {
+          section: 'users',
+          request: () => api('api/users.php'),
+          onSuccess: (payload) => {
+            state.users = payload.users || [];
+          },
+          onForbidden: () => {
+            state.users = [];
+          }
+        },
+        {
+          section: 'permissions',
+          request: () => api('api/permissions.php'),
+          onSuccess: (payload) => {
+            state.roles = payload.roles || {};
+            state.rolesMeta = payload.roles_meta || {};
+            state.builtinRoles = payload.builtin_roles || [];
+            state.permissions = payload.permissions || [];
+          },
+          onForbidden: () => {
+            state.roles = {};
+            state.rolesMeta = {};
+            state.builtinRoles = [];
+            state.permissions = [];
+          }
+        },
+        {
+          section: 'settings',
+          request: () => api('api/settings.php'),
+          onSuccess: (payload) => {
+            state.settings = payload.settings || {};
+          },
+          onForbidden: () => {
+            state.settings = {};
+          }
+        },
+        {
+          section: 'launcher',
+          request: () => api('api/launcher.php'),
+          onSuccess: (payload) => {
+            state.launcher = payload.launcher || { config: {}, news: [] };
+          },
+          onForbidden: () => {
+            state.launcher = { config: {}, news: [] };
+          }
+        }
+      ];
+
+      await Promise.all(restrictedFetches.map(async (entry) => {
+        try {
+          const payload = await entry.request();
+          state.sectionAccess[entry.section] = true;
+          entry.onSuccess(payload);
+        } catch (error) {
+          if (!isForbiddenError(error)) {
+            throw error;
+          }
+
+          state.sectionAccess[entry.section] = false;
+          entry.onForbidden();
+        }
+      }));
+
+      state.sectionAccess.files = state.instances.length > 0;
+
+      applySectionAccess();
 
       if (!state.file.instanceId && state.instances.length) {
         state.file.instanceId = state.instances[0].id;
@@ -1333,7 +1841,7 @@
       renderLauncher();
       renderSettings();
 
-      if (state.file.instanceId) {
+      if (state.file.instanceId && state.sectionAccess.files !== false) {
         await loadFiles(state.file.instanceId, state.file.path || '');
       }
 

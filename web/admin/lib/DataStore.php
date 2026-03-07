@@ -262,6 +262,7 @@ final class DataStore
             'maintenance_mode' => false,
             'session_timeout_minutes' => 120,
             'allow_instance_delete' => true,
+            'custom_roles' => [],
             'updated_at' => self::nowIso(),
         ];
 

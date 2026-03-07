@@ -7,7 +7,6 @@ admin_security_headers();
 
 admin_require_method(['GET']);
 $user = admin_require_auth();
-admin_require_permission($user, 'admin.access');
 
 $users = DataStore::loadUsers();
 $instances = DataStore::loadInstances();

@@ -3,48 +3,208 @@
     align-items: center;
     justify-content: center;
     height: 100%;
+    padding: 24px;
 }
 
 .login-tabs {
     position: absolute;
-    padding: 15px;
-    background: var(--background);
-    border-radius: 15px;
+    display: none;
+    width: min(620px, 92vw);
+    padding: 26px;
+    border-radius: var(--radius-lg);
+    border: 1px solid var(--outline-strong);
     text-align: center;
-    min-width: 40%;
+    background: linear-gradient(165deg, var(--surface-strong), var(--surface-soft));
+    box-shadow: 0 22px 48px var(--shadow);
+    overflow: hidden;
+    animation: login-float 6.5s ease-in-out infinite;
 }
 
-.login-home,
-.login-offline,
-.login-AZauth,
-.login-AZauth-A2F {
-    display: none;
+.login-tabs::before {
+    content: '';
+    position: absolute;
+    top: -160%;
+    left: -55%;
+    width: 44%;
+    height: 320%;
+    background: linear-gradient(180deg, transparent, rgba(255, 255, 255, 0.08), transparent);
+    transform: rotate(18deg);
+    pointer-events: none;
+    animation: login-shine 4.5s ease-in-out infinite;
 }
 
 .login-text {
-    font-size: 1.3rem;
+    position: relative;
+    font-size: clamp(1rem, 2.5vw, 1.2rem);
+    line-height: 1.45;
+    margin-bottom: 18px;
+}
+
+.login-options {
+    position: relative;
+    display: flex;
+    justify-content: center;
+    gap: 10px;
+    margin-top: 18px;
+    flex-wrap: wrap;
 }
 
 .connect,
 .cancel {
-    background: none;
+    border: 0;
+    border-radius: var(--radius-md);
+    padding: 0.7rem 2rem;
+    font-size: 0.95rem;
+    font-weight: 700;
+    letter-spacing: 0.2px;
+    cursor: pointer;
+    transition: var(--transition);
+}
+
+.connect {
+    position: relative;
+    background: linear-gradient(180deg, var(--element-color-soft), var(--element-color-strong));
+    color: #12200e;
+    min-width: 170px;
+    overflow: hidden;
+}
+
+.connect::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: -52%;
+    width: 40%;
+    height: 100%;
+    background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.35), transparent);
+    transform: skewX(-18deg);
+    animation: cta-glint 2.8s ease-in-out infinite;
+}
+
+.connect:hover {
+    filter: brightness(1.05);
+    transform: translateY(-1px);
+}
+
+.cancel {
+    background: rgba(0, 0, 0, 0.18);
     color: var(--color);
-    border: solid 4px var(--element-color);
-    border-radius: 10px;
-    padding: 0.3rem 4rem;
-    font-size: inherit;
-    font-weight: bold;
-    margin: 15px 10px;
+    border: 1px solid var(--outline);
+}
+
+.cancel:hover {
+    background: rgba(0, 0, 0, 0.3);
+    border-color: var(--outline-strong);
+}
+
+.input-login {
+    position: relative;
+    display: grid;
+    gap: 10px;
 }
 
 .input-login .email,
 .input-login .password,
 .A2F {
     color: var(--color);
-    background: none;
-    border: solid 2px var(--element-color);
-    border-radius: 30px;
-    width: 50%;
-    padding: 0.4rem 1rem;
-    margin-top: 10px;
+    background: rgba(0, 0, 0, 0.16);
+    border: 1px solid var(--outline);
+    border-radius: 12px;
+    width: min(420px, 100%);
+    padding: 0.7rem 0.9rem;
+    margin: 0 auto;
+    font-size: 0.95rem;
+    transition: var(--transition);
 }
+
+.input-login .email::placeholder,
+.input-login .password::placeholder,
+.A2F::placeholder {
+    color: var(--text-muted);
+}
+
+.input-login .email:focus,
+.input-login .password:focus,
+.A2F:focus {
+    border-color: var(--outline-strong);
+    background: rgba(0, 0, 0, 0.28);
+    box-shadow: 0 0 0 4px rgba(117, 200, 91, 0.17);
+}
+
+.login.active .login-tabs {
+    animation: login-enter 0.35s ease both, login-float 6.5s ease-in-out 0.35s infinite;
+}
+
+@keyframes login-enter {
+    from {
+        opacity: 0;
+        transform: translateY(12px) scale(0.985);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+    }
+}
+
+@keyframes login-shine {
+
+    0%,
+    68%,
+    100% {
+        opacity: 0;
+        transform: translateY(0) rotate(18deg);
+    }
+
+    12% {
+        opacity: 1;
+    }
+
+    32% {
+        opacity: 0;
+        transform: translateY(84%) rotate(18deg);
+    }
+}
+
+@keyframes login-float {
+
+    0%,
+    100% {
+        transform: translateY(0);
+    }
+
+    50% {
+        transform: translateY(-2px);
+    }
+}
+
+@keyframes cta-glint {
+
+    0%,
+    62%,
+    100% {
+        transform: translateX(0) skewX(-18deg);
+        opacity: 0;
+    }
+
+    16% {
+        opacity: 0.8;
+    }
+
+    32% {
+        transform: translateX(340%) skewX(-18deg);
+        opacity: 0;
+    }
+}
+
+@media (max-width: 820px) {
+    .login .container {
+        padding: 14px;
+    }
+
+    .login-tabs {
+        padding: 18px;
+        animation: none;
+    }
+}
+

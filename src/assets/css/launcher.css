@@ -7,10 +7,39 @@
 body {
     margin: 0;
     padding: 0;
+    width: 100vw;
+    height: 100vh;
+    overflow: hidden;
     user-select: none;
     color: var(--color);
     font-family: 'Poppins';
-    font-weight: bolder;
+    font-weight: 600;
+    letter-spacing: 0.2px;
+    position: relative;
+    animation: ui-ambient 12s ease-in-out infinite alternate;
+}
+
+body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+    background: linear-gradient(165deg, rgba(8, 13, 9, 0.52) 0%, rgba(7, 15, 10, 0.25) 45%, rgba(18, 34, 21, 0.56) 100%);
+    background-size: 180% 180%;
+    animation: atmosphere-shift 18s ease-in-out infinite alternate;
+}
+
+body::after {
+    content: '';
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+    opacity: 0.12;
+    background-image:
+        linear-gradient(transparent 95%, rgba(0, 0, 0, 0.4) 95%),
+        linear-gradient(90deg, transparent 95%, rgba(0, 0, 0, 0.35) 95%);
+    background-size: 4px 4px;
+    animation: pixel-drift 14s linear infinite;
 }
 
 img {
@@ -20,6 +49,12 @@ img {
 
 * {
     outline: none;
+    box-sizing: border-box;
+}
+
+button,
+input {
+    font-family: 'Poppins';
 }
 
 input::-webkit-outer-spin-button,
@@ -33,68 +68,85 @@ input::-webkit-inner-spin-button {
 }
 
 .content-scroll::-webkit-scrollbar {
-    width: 0;
+    width: 8px;
+}
+
+.content-scroll::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+.content-scroll::-webkit-scrollbar-thumb {
+    background: var(--outline-strong);
+    border-radius: 999px;
+}
+
+.content-scroll::-webkit-scrollbar-thumb:hover {
+    background: var(--element-color);
 }
 
 .dragbar {
     position: fixed;
-    top: 0px;
-    left: 0px;
+    top: 0;
+    left: 0;
     width: 100%;
-    height: 26px;
+    height: 30px;
     -webkit-app-region: drag;
     z-index: 11;
 }
 
-.darwin .frame {
-    background: transparent;
+.darwin .frame,
+.other .frame {
     position: fixed;
-    top: 0px;
-    z-index: 11;
+    top: 0;
+    z-index: 12;
     -webkit-app-region: no-drag;
     display: none;
+    height: 30px;
+    border-bottom: 1px solid var(--outline);
+    background: linear-gradient(180deg, rgba(16, 24, 16, 0.55), rgba(16, 24, 16, 0.15));
+    backdrop-filter: blur(6px);
+}
+
+.darwin .frame {
+    left: 0;
+    border-radius: 0 0 var(--radius-md) 0;
+    padding-left: 10px;
 }
 
 .other .frame {
-    background: transparent;
-    position: fixed;
-    top: 0px;
-    right: 0px;
-    z-index: 11;
-    -webkit-app-region: no-drag;
-    display: none;
+    right: 0;
+    border-radius: 0 0 0 var(--radius-md);
 }
 
 .frame.hide {
-    display: block;
+    display: flex;
+}
+
+.darwin .button-frame,
+.other .button-frame {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    transition: var(--transition);
+    cursor: pointer;
 }
 
 .darwin .button-frame {
-    position: relative;
-    display: table-cell;
-    width: 20px;
-    height: 26px;
-    transition: color .2s, background-color .2s;
+    width: 22px;
+    height: 30px;
 }
 
 .other .button-frame {
-    position: relative;
-    display: table-cell;
-    width: 30px;
-    height: 26px;
-    transition: color .2s, background-color .2s;
-    color: black;
-    cursor: pointer;
+    width: 40px;
+    height: 30px;
+    color: #eef5ea;
 }
 
 .button-frame:before {
     position: absolute;
-    top: 6px;
-    left: 8px;
-    width: 14px;
-    height: 14px;
-    font-size: 14px;
-    color: #f8f9f9;
+    font-size: 13px;
+    color: currentColor;
 }
 
 .darwin-icon-minimize,
@@ -109,13 +161,13 @@ input::-webkit-inner-spin-button {
     content: '';
     position: absolute;
     border-radius: 50%;
-    width: 12px;
-    height: 12px;
+    width: 11px;
+    height: 11px;
     cursor: pointer;
 }
 
 .darwin-icon-maximize:before {
-    background: #07d014;
+    background: #27c93f;
 }
 
 .darwin-icon-minimize:before {
@@ -123,43 +175,69 @@ input::-webkit-inner-spin-button {
 }
 
 .darwin-icon-close:before {
-    background: #ff6047;
+    background: #ff5f57;
 }
 
 .icon-close:hover {
-    background: #e21212;
+    background: rgba(207, 40, 40, 0.75);
 }
 
 .icon-minimize:hover,
 .icon-restore-down:hover,
 .icon-maximize:hover {
-    background-color: #0000009d;
+    background-color: rgba(16, 24, 16, 0.65);
 }
 
 .popup {
     position: absolute;
-    width: 100%;
-    height: 100%;
-    z-index: 10;
+    inset: 0;
+    z-index: 16;
     display: none;
     flex-direction: column;
     align-items: center;
     justify-content: center;
+    background: rgba(4, 8, 5, 0.64);
+    backdrop-filter: blur(6px);
+    animation: popup-fade-in 0.22s ease;
 }
 
 .popup-tab {
-    width: 40%;
-    padding: 15px;
-    background: var(--background);
-    border-radius: 15px;
-    z-index: 10;
+    width: min(640px, 78vw);
+    padding: 20px;
+    border-radius: var(--radius-lg);
+    border: 1px solid var(--outline-strong);
+    background: var(--surface-strong);
+    box-shadow: 0 24px 55px var(--shadow);
+    z-index: 1;
+    overflow: hidden;
+    animation: popup-card-in 0.25s ease;
+}
+
+.popup-tab::before {
+    content: '';
+    position: absolute;
+    top: -120%;
+    left: -55%;
+    width: 45%;
+    height: 280%;
+    transform: rotate(18deg);
+    background: linear-gradient(180deg, transparent, rgba(255, 255, 255, 0.08), transparent);
+    pointer-events: none;
+    animation: popup-shine 3.8s ease-in-out infinite;
 }
 
 .popup-title {
     text-align: center;
-    font-size: 2rem;
-    border-bottom: solid 4px var(--color);
-    margin-bottom: 1rem;
+    font-size: 1.4rem;
+    border-bottom: 1px solid var(--outline);
+    padding-bottom: 10px;
+    margin-bottom: 12px;
+}
+
+.popup-content {
+    line-height: 1.55;
+    color: var(--text-muted);
+    font-weight: 500;
 }
 
 .popup-options {
@@ -169,27 +247,133 @@ input::-webkit-inner-spin-button {
 }
 
 .popup-button {
-    background: none;
-    color: var(--color);
-    border: solid 4px var(--element-color);
-    border-radius: 10px;
-    padding: 0.3rem 4rem;
-    font-size: inherit;
-    font-weight: bold;
-    margin: 15px 10px;
+    background: linear-gradient(180deg, var(--element-color-soft), var(--element-color-strong));
+    color: #10200d;
+    border: 0;
+    border-radius: var(--radius-md);
+    padding: 0.55rem 2.9rem;
+    font-size: 0.95rem;
+    font-weight: 700;
+    margin-top: 16px;
+    cursor: pointer;
+    transition: var(--transition);
+}
+
+.popup-button:hover {
+    transform: translateY(-1px);
+    filter: brightness(1.06);
+}
+
+.panels {
+    position: absolute;
+    inset: 30px 0 0;
+    z-index: 2;
+    perspective: 1100px;
 }
 
 .panel {
     position: absolute;
-    width: 100%;
-    height: 100%;
+    inset: 0;
     opacity: 0;
+    transform: translateY(8px) scale(0.995) rotateX(1.4deg);
+    filter: blur(1.2px);
     z-index: 0;
     pointer-events: none;
+    transition: opacity 0.3s ease, transform 0.32s ease, filter 0.32s ease;
 }
 
 .active {
     opacity: 1;
+    transform: translateY(0) scale(1) rotateX(0);
+    filter: blur(0);
     z-index: 1;
     pointer-events: all;
+}
+
+@keyframes ui-ambient {
+    from {
+        filter: saturate(0.98);
+    }
+
+    to {
+        filter: saturate(1.04);
+    }
+}
+
+@keyframes atmosphere-shift {
+    from {
+        background-position: 0% 30%;
+    }
+
+    to {
+        background-position: 100% 70%;
+    }
+}
+
+@keyframes pixel-drift {
+    from {
+        background-position: 0 0, 0 0;
+    }
+
+    to {
+        background-position: 0 28px, 28px 0;
+    }
+}
+
+@keyframes popup-fade-in {
+    from {
+        opacity: 0;
+    }
+
+    to {
+        opacity: 1;
+    }
+}
+
+@keyframes popup-card-in {
+    from {
+        opacity: 0;
+        transform: translateY(14px) scale(0.985);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+    }
+}
+
+@keyframes popup-shine {
+
+    0%,
+    72%,
+    100% {
+        opacity: 0;
+        transform: translateY(0) rotate(18deg);
+    }
+
+    12% {
+        opacity: 1;
+    }
+
+    30% {
+        opacity: 0;
+        transform: translateY(85%) rotate(18deg);
+    }
+}
+
+@media (max-width: 1100px) {
+    .popup-tab {
+        width: min(680px, 88vw);
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+
+    *,
+    *::before,
+    *::after {
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.01ms !important;
+    }
 }

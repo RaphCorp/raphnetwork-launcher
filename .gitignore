@@ -6,4 +6,4 @@ dist
 node-v*
 data
 .DS_Store
-web
+web/instances/instances

@@ -1,0 +1,85 @@
+<?php
+
+declare(strict_types=1);
+
+require_once __DIR__ . '/bootstrap.php';
+admin_security_headers();
+
+$currentUser = Auth::currentUser();
+$authenticated = $currentUser !== null && Permissions::canAccessAdminPanel($currentUser);
+$validSections = ['overview', 'instances', 'users', 'files', 'permissions', 'settings'];
+$initialSection = (string) ($_GET['section'] ?? 'overview');
+if (!in_array($initialSection, $validSections, true)) {
+    $initialSection = 'overview';
+}
+?>
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin Panel</title>
+    <link rel="stylesheet" href="assets/admin.css">
+</head>
+<body>
+<div id="app" class="app-shell">
+    <section id="loginView" class="login-view<?php echo $authenticated ? ' hidden' : ''; ?>">
+        <div class="login-card">
+            <h1>Admin Panel</h1>
+            <p>Secure access required</p>
+            <form id="loginForm">
+                <label>
+                    Username
+                    <input type="text" name="username" required minlength="3" maxlength="32" autocomplete="username">
+                </label>
+                <label>
+                    Password
+                    <input type="password" name="password" required minlength="8" autocomplete="current-password">
+                </label>
+                <button type="submit">Sign In</button>
+            </form>
+            <div id="loginError" class="error"></div>
+        </div>
+    </section>
+
+    <section id="adminView" class="admin-view<?php echo $authenticated ? '' : ' hidden'; ?>">
+        <aside class="sidebar">
+            <div class="brand">Raph Admin</div>
+            <nav id="sidebarNav">
+                <button data-section="overview" class="active">Overview</button>
+                <button data-section="instances">Instances</button>
+                <button data-section="users">Users</button>
+                <button data-section="files">File Management</button>
+                <button data-section="permissions">Permissions / Roles</button>
+                <button data-section="settings">System Settings</button>
+            </nav>
+        </aside>
+
+        <main class="main-content">
+            <header class="topbar">
+                <div id="statusBar">Status: loading</div>
+                <div class="topbar-actions">
+                    <span id="currentUser"></span>
+                    <button id="logoutBtn" class="danger">Logout</button>
+                </div>
+            </header>
+
+            <section id="section-overview" class="panel active"></section>
+            <section id="section-instances" class="panel"></section>
+            <section id="section-users" class="panel"></section>
+            <section id="section-files" class="panel"></section>
+            <section id="section-permissions" class="panel"></section>
+            <section id="section-settings" class="panel"></section>
+        </main>
+    </section>
+</div>
+<script>
+window.__ADMIN_BOOTSTRAP__ = {
+    authenticated: <?php echo $authenticated ? 'true' : 'false'; ?>,
+    user: <?php echo json_encode($authenticated ? admin_public_user($currentUser) : null, JSON_UNESCAPED_SLASHES); ?>,
+    initialSection: <?php echo json_encode($initialSection, JSON_UNESCAPED_SLASHES); ?>
+};
+</script>
+<script src="assets/admin.js"></script>
+</body>
+</html>

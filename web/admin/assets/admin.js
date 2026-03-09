@@ -464,28 +464,107 @@
             ? ''
             : '<p class="muted">User directory is restricted for your account. You can still edit this instance using known user IDs.</p>';
 
+          const launcherDefaults = {
+            loader: {
+              minecraft_version: '1.21.1',
+              loader_type: 'vanilla',
+              loader_version: 'latest'
+            },
+            verify: true,
+            ignored: [],
+            whitelist: [],
+            whitelistActive: false,
+            status: {
+              nameServer: instance.name || '',
+              ip: '',
+              port: 25565
+            },
+            jvm_args: [],
+            game_args: []
+          };
+
           openModal({
             title: `Edit Instance: ${instance.name}`,
             contentHtml: `
               <form id="editInstanceModalForm" class="form-grid">
                 <input type="hidden" name="id" value="${escapeHtml(instance.id)}">
-                ${userDirectoryNotice}
-                <label>Name <input name="name" value="${escapeHtml(instance.name || '')}" required minlength="2" maxlength="64"></label>
-                <label>Owner <select name="owner">${ownerOptions}</select></label>
-                <label>Status
-                  <select name="status">
-                    <option value="online" ${instance.status === 'online' ? 'selected' : ''}>online</option>
-                    <option value="offline" ${instance.status === 'offline' ? 'selected' : ''}>offline</option>
-                    <option value="maintenance" ${instance.status === 'maintenance' ? 'selected' : ''}>maintenance</option>
-                    <option value="unknown" ${instance.status === 'unknown' ? 'selected' : ''}>unknown</option>
-                  </select>
-                </label>
-                <label>Administrators
-                  <select name="admins" multiple size="7">${userMultiOptions}</select>
-                </label>
-                <label>Assigned Users
-                  <select name="assigned_users" multiple size="7">${assignedUserOptions}</select>
-                </label>
+
+                <div class="tab-strip" style="grid-column:1/-1;">
+                  <button type="button" class="tab-btn active" data-modal-tab="general">General</button>
+                  <button type="button" class="tab-btn" data-modal-tab="launcher">Launcher Settings</button>
+                </div>
+
+                <section class="tab-panel active" data-tab-panel="general" style="grid-column:1/-1;">
+                  ${userDirectoryNotice}
+                  <div class="form-grid" style="margin:0;">
+                    <label>Name <input name="name" value="${escapeHtml(instance.name || '')}" required minlength="2" maxlength="64"></label>
+                    <label>Owner <select name="owner">${ownerOptions}</select></label>
+                    <label>Status
+                      <select name="status">
+                        <option value="online" ${instance.status === 'online' ? 'selected' : ''}>online</option>
+                        <option value="offline" ${instance.status === 'offline' ? 'selected' : ''}>offline</option>
+                        <option value="maintenance" ${instance.status === 'maintenance' ? 'selected' : ''}>maintenance</option>
+                        <option value="unknown" ${instance.status === 'unknown' ? 'selected' : ''}>unknown</option>
+                      </select>
+                    </label>
+                    <label>Administrators
+                      <select name="admins" multiple size="7">${userMultiOptions}</select>
+                    </label>
+                    <label>Assigned Users
+                      <select name="assigned_users" multiple size="7">${assignedUserOptions}</select>
+                    </label>
+                  </div>
+                </section>
+
+                <section class="tab-panel" data-tab-panel="launcher" style="grid-column:1/-1;">
+                  <p class="muted">This controls launcher behavior for this instance (loader, verification, excluded files, whitelist, displayed status, and JVM/game args).</p>
+                  <p id="launcherSettingsStatus" class="muted">Loading launcher settings...</p>
+                  <div class="form-grid" style="margin:0;">
+                    <label>Minecraft Version
+                      <input name="launcher_mc_version" maxlength="32" placeholder="1.21.1">
+                    </label>
+                    <label>Loader Type
+                      <select name="launcher_loader_type">
+                        <option value="vanilla">vanilla</option>
+                        <option value="forge">forge</option>
+                        <option value="fabric">fabric</option>
+                        <option value="quilt">quilt</option>
+                        <option value="neoforge">neoforge</option>
+                      </select>
+                    </label>
+                    <label>Loader Version
+                      <input name="launcher_loader_version" maxlength="64" placeholder="latest">
+                    </label>
+                    <label class="checkbox-inline">
+                      <input type="checkbox" name="launcher_verify"> Verify downloaded files
+                    </label>
+                    <label class="checkbox-inline">
+                      <input type="checkbox" name="launcher_whitelist_active"> Enforce whitelist in launcher
+                    </label>
+                    <label>Server Name
+                      <input name="launcher_status_name" maxlength="80" placeholder="Instance Name">
+                    </label>
+                    <label>Server Host/IP
+                      <input name="launcher_status_ip" maxlength="255" placeholder="mc.example.com">
+                    </label>
+                    <label>Server Port
+                      <input name="launcher_status_port" type="number" min="1" max="65535" step="1" placeholder="25565">
+                    </label>
+                    <label style="grid-column:1/-1;">Ignored / Excluded Items (one per line)
+                      <textarea name="launcher_ignored" placeholder="logs&#10;screenshots"></textarea>
+                    </label>
+                    <label style="grid-column:1/-1;">Whitelist Usernames (one per line)
+                      <textarea name="launcher_whitelist" placeholder="player_one&#10;player_two"></textarea>
+                    </label>
+                    <label style="grid-column:1/-1;">JVM Args (one per line)
+                      <textarea name="launcher_jvm_args" placeholder="-Xmx4G&#10;-XX:+UseG1GC"></textarea>
+                    </label>
+                    <label style="grid-column:1/-1;">Game Args (one per line)
+                      <textarea name="launcher_game_args" placeholder="--demo"></textarea>
+                    </label>
+                  </div>
+                </section>
+
                 <div class="modal-actions" style="grid-column:1/-1;">
                   <button type="button" id="cancelEditInstance" class="subtle">Cancel</button>
                   <button type="submit" class="primary">Save Changes</button>
@@ -494,34 +573,137 @@
             `
           });
 
+          const parseListField = (value) => String(value || '')
+            .split(/\r?\n|,/)
+            .map((item) => item.trim())
+            .filter(Boolean);
+
+          const setListField = (element, values) => {
+            if (!element) return;
+            element.value = Array.isArray(values) ? values.join('\n') : '';
+          };
+
+          const tabButtons = Array.from(document.querySelectorAll('#editInstanceModalForm [data-modal-tab]'));
+          const tabPanels = Array.from(document.querySelectorAll('#editInstanceModalForm [data-tab-panel]'));
+          const switchModalTab = (tabName) => {
+            tabButtons.forEach((button) => {
+              button.classList.toggle('active', button.dataset.modalTab === tabName);
+            });
+            tabPanels.forEach((panel) => {
+              panel.classList.toggle('active', panel.dataset.tabPanel === tabName);
+            });
+          };
+
+          tabButtons.forEach((button) => {
+            button.addEventListener('click', () => {
+              switchModalTab(button.dataset.modalTab);
+            });
+          });
+
+          const launcherStatus = document.getElementById('launcherSettingsStatus');
+          const form = document.getElementById('editInstanceModalForm');
+
+          const setLauncherValues = (launcher) => {
+            const config = launcher || launcherDefaults;
+            const loader = config.loader || launcherDefaults.loader;
+            const statusInfo = config.status || launcherDefaults.status;
+
+            form.launcher_mc_version.value = loader.minecraft_version || '';
+            form.launcher_loader_type.value = loader.loader_type || 'vanilla';
+            form.launcher_loader_version.value = loader.loader_version || '';
+            form.launcher_verify.checked = Boolean(config.verify);
+            form.launcher_whitelist_active.checked = Boolean(config.whitelistActive);
+
+            form.launcher_status_name.value = statusInfo.nameServer || instance.name || '';
+            form.launcher_status_ip.value = statusInfo.ip || '';
+            form.launcher_status_port.value = Number(statusInfo.port || 25565);
+
+            setListField(form.launcher_ignored, config.ignored || []);
+            setListField(form.launcher_whitelist, config.whitelist || []);
+            setListField(form.launcher_jvm_args, config.jvm_args || []);
+            setListField(form.launcher_game_args, config.game_args || []);
+          };
+
+          setLauncherValues(launcherDefaults);
+
+          (async () => {
+            try {
+              const result = await api(`api/instance_launcher.php?instance_id=${encodeURIComponent(instance.id)}`);
+              setLauncherValues(result.launcher || launcherDefaults);
+              if (launcherStatus) {
+                launcherStatus.textContent = 'Launcher settings loaded.';
+              }
+            } catch (error) {
+              if (launcherStatus) {
+                launcherStatus.textContent = `Could not load launcher settings: ${error.message}`;
+              }
+            }
+          })();
+
           document.getElementById('cancelEditInstance')?.addEventListener('click', closeModal);
           document.getElementById('editInstanceModalForm')?.addEventListener('submit', async (event) => {
             event.preventDefault();
-            const form = event.currentTarget;
+            const submitForm = event.currentTarget;
+
+            const launcherPayload = {
+              loader: {
+                minecraft_version: submitForm.launcher_mc_version.value.trim(),
+                loader_type: submitForm.launcher_loader_type.value,
+                loader_version: submitForm.launcher_loader_version.value.trim()
+              },
+              verify: Boolean(submitForm.launcher_verify.checked),
+              ignored: parseListField(submitForm.launcher_ignored.value),
+              whitelist: parseListField(submitForm.launcher_whitelist.value),
+              whitelistActive: Boolean(submitForm.launcher_whitelist_active.checked),
+              status: {
+                nameServer: submitForm.launcher_status_name.value.trim(),
+                ip: submitForm.launcher_status_ip.value.trim(),
+                port: Number(submitForm.launcher_status_port.value || 25565)
+              },
+              jvm_args: parseListField(submitForm.launcher_jvm_args.value),
+              game_args: parseListField(submitForm.launcher_game_args.value)
+            };
+
+            const generalPayload = {
+              id: submitForm.id.value,
+              name: submitForm.name.value.trim(),
+              owner: submitForm.owner.value,
+              status: submitForm.status.value,
+              admins: getMultiSelectValues(submitForm.admins),
+              assigned_users: getMultiSelectValues(submitForm.assigned_users)
+            };
+
+            let launcherSaved = false;
 
             try {
-              await api('api/instances.php', {
+              await api('api/instance_launcher.php', {
                 method: 'PATCH',
                 body: {
-                  id: form.id.value,
-                  name: form.name.value.trim(),
-                  owner: form.owner.value,
-                  status: form.status.value,
-                  admins: getMultiSelectValues(form.admins),
-                  assigned_users: getMultiSelectValues(form.assigned_users)
+                  instance_id: instance.id,
+                  launcher: launcherPayload
                 }
               });
+              launcherSaved = true;
+
+              await api('api/instances.php', {
+                method: 'PATCH',
+                body: generalPayload
+              });
+
               closeModal();
               await refreshData();
-              status('Instance updated');
+              status('Instance and launcher settings updated');
             } catch (error) {
-              status(error.message, true);
+              if (launcherSaved) {
+                status(`Launcher settings saved, but instance update failed: ${error.message}`, true);
+              } else {
+                status(error.message, true);
+              }
             }
           });
 
           return;
         }
-
         if (action === 'delete') {
           openModal({
             title: `Delete Instance: ${instance.name}`,
@@ -777,15 +959,26 @@
     const isReadOnly = !state.file.writable;
     const activeInstance = state.instances.find((instance) => instance.id === state.file.instanceId);
 
+    const getParentPath = (path) => {
+      const parts = String(path || '').split('/').filter(Boolean);
+      parts.pop();
+      return parts.join('/');
+    };
+
     const rows = (state.file.items || []).map((item) => {
+      const canExtract = item.type === 'file' && /\.zip$/i.test(String(item.name || ''));
+      const modifiedAt = item.modified_at ? new Date(item.modified_at).toLocaleString() : '-';
+
       return `
         <tr>
           <td>${escapeHtml(item.type)}</td>
           <td>${escapeHtml(item.name)}</td>
           <td>${escapeHtml(item.path)}</td>
           <td>${item.size != null ? escapeHtml(item.size) : '-'}</td>
+          <td>${escapeHtml(modifiedAt)}</td>
           <td class="actions">
             ${item.type === 'directory' ? `<button data-open-dir="${escapeHtml(item.path)}">Open</button>` : `<button data-open-file="${escapeHtml(item.path)}">Edit</button>`}
+            ${canExtract ? `<button data-extract-path="${escapeHtml(item.path)}" ${isReadOnly ? 'disabled' : ''}>Extract</button>` : ''}
             <button class="danger" data-delete-path="${escapeHtml(item.path)}" ${isReadOnly ? 'disabled' : ''}>Delete</button>
           </td>
         </tr>
@@ -810,20 +1003,30 @@
             <input id="filePathInput" placeholder="config" value="${escapeHtml(state.file.path || '')}">
           </label>
           <button id="fileLoadBtn">Load</button>
+          <button id="fileUpBtn" class="subtle">Up</button>
+          <button id="fileRefreshBtn" class="subtle">Refresh</button>
         </div>
-        <p class="muted">Uploads and edits require write access on this folder for the PHP process.</p>
+        <p class="muted">Supports single/multi-file upload, folder upload, and zip extraction inside the instance directory only.</p>
         <div class="toolbar">
           <input type="text" id="mkdirInput" placeholder="new-folder" ${isReadOnly ? 'disabled' : ''}>
           <button id="mkdirBtn" ${isReadOnly ? 'disabled' : ''}>Create Folder</button>
-          <input type="file" id="uploadInput" ${isReadOnly ? 'disabled' : ''}>
-          <button id="uploadBtn" ${isReadOnly ? 'disabled' : ''}>Upload</button>
+        </div>
+        <div class="toolbar">
+          <input type="file" id="uploadInput" multiple ${isReadOnly ? 'disabled' : ''}>
+          <button id="uploadBtn" ${isReadOnly ? 'disabled' : ''}>Upload File(s)</button>
+          <input type="file" id="folderUploadInput" webkitdirectory directory multiple ${isReadOnly ? 'disabled' : ''}>
+          <button id="uploadFolderBtn" ${isReadOnly ? 'disabled' : ''}>Upload Folder</button>
+        </div>
+        <div class="toolbar">
+          <input type="text" id="extractPathInput" placeholder="archive.zip" ${isReadOnly ? 'disabled' : ''}>
+          <button id="extractBtn" ${isReadOnly ? 'disabled' : ''}>Extract Zip</button>
         </div>
       </div>
 
       <div class="table-wrap" style="margin-top:1rem;">
         <table>
-          <thead><tr><th>Type</th><th>Name</th><th>Path</th><th>Size</th><th>Actions</th></tr></thead>
-          <tbody>${rows}</tbody>
+          <thead><tr><th>Type</th><th>Name</th><th>Path</th><th>Size</th><th>Modified</th><th>Actions</th></tr></thead>
+          <tbody>${rows || '<tr><td colspan="6" class="muted">Directory is empty.</td></tr>'}</tbody>
         </table>
       </div>
 
@@ -839,6 +1042,55 @@
     instanceSelect.value = state.file.instanceId || state.instances[0]?.id || '';
     state.file.instanceId = instanceSelect.value;
 
+    const uploadFiles = async (files, successLabel) => {
+      if (!files || files.length === 0) {
+        status('No files selected', true);
+        return;
+      }
+
+      const formData = new FormData();
+      formData.append('path', state.file.path || '');
+      Array.from(files).forEach((file) => {
+        const relativeName = String(file.webkitRelativePath || file.name || '');
+        formData.append('relative_paths[]', relativeName);
+        formData.append('files[]', file, file.name);
+      });
+
+      try {
+        const result = await api(`api/files.php?instance_id=${encodeURIComponent(state.file.instanceId)}&action=upload`, {
+          method: 'POST',
+          body: formData,
+          isForm: true
+        });
+        await loadFiles(state.file.instanceId, state.file.path);
+        status(`${successLabel} (${result.uploaded || files.length} file(s))`);
+      } catch (error) {
+        status(error.message, true);
+      }
+    };
+
+    const extractArchive = async (archivePath) => {
+      const safePath = String(archivePath || '').trim();
+      if (!safePath) {
+        status('Archive path is required', true);
+        return;
+      }
+
+      try {
+        const result = await api(`api/files.php?instance_id=${encodeURIComponent(state.file.instanceId)}&action=extract`, {
+          method: 'POST',
+          body: {
+            path: safePath,
+            destination: state.file.path || ''
+          }
+        });
+        await loadFiles(state.file.instanceId, state.file.path);
+        status(`Extracted ${result.extracted || 0} file(s)`);
+      } catch (error) {
+        status(error.message, true);
+      }
+    };
+
     document.getElementById('goInstancesBtn')?.addEventListener('click', () => {
       switchSection('instances');
     });
@@ -846,6 +1098,16 @@
     document.getElementById('fileLoadBtn')?.addEventListener('click', async () => {
       state.file.instanceId = instanceSelect.value;
       state.file.path = document.getElementById('filePathInput').value.trim();
+      await loadFiles(state.file.instanceId, state.file.path);
+    });
+
+    document.getElementById('fileUpBtn')?.addEventListener('click', async () => {
+      state.file.path = getParentPath(state.file.path || '');
+      document.getElementById('filePathInput').value = state.file.path;
+      await loadFiles(state.file.instanceId, state.file.path);
+    });
+
+    document.getElementById('fileRefreshBtn')?.addEventListener('click', async () => {
       await loadFiles(state.file.instanceId, state.file.path);
     });
 
@@ -868,26 +1130,19 @@
 
     document.getElementById('uploadBtn')?.addEventListener('click', async () => {
       const uploadInput = document.getElementById('uploadInput');
-      if (!uploadInput.files?.[0]) {
-        return;
-      }
+      await uploadFiles(uploadInput.files, 'Upload complete');
+      uploadInput.value = '';
+    });
 
-      const formData = new FormData();
-      formData.append('path', state.file.path || '');
-      formData.append('file', uploadInput.files[0]);
+    document.getElementById('uploadFolderBtn')?.addEventListener('click', async () => {
+      const folderUploadInput = document.getElementById('folderUploadInput');
+      await uploadFiles(folderUploadInput.files, 'Folder upload complete');
+      folderUploadInput.value = '';
+    });
 
-      try {
-        await api(`api/files.php?instance_id=${encodeURIComponent(state.file.instanceId)}&action=upload`, {
-          method: 'POST',
-          body: formData,
-          isForm: true
-        });
-        uploadInput.value = '';
-        await loadFiles(state.file.instanceId, state.file.path);
-        status('File uploaded');
-      } catch (error) {
-        status(error.message, true);
-      }
+    document.getElementById('extractBtn')?.addEventListener('click', async () => {
+      const archivePath = document.getElementById('extractPathInput').value;
+      await extractArchive(archivePath);
     });
 
     document.getElementById('saveFileBtn')?.addEventListener('click', async () => {
@@ -932,6 +1187,13 @@
       });
     });
 
+    els.panels.files.querySelectorAll('[data-extract-path]').forEach((button) => {
+      button.addEventListener('click', async () => {
+        const archivePath = button.dataset.extractPath;
+        await extractArchive(archivePath);
+      });
+    });
+
     els.panels.files.querySelectorAll('[data-delete-path]').forEach((button) => {
       button.addEventListener('click', async () => {
         const path = button.dataset.deletePath;
@@ -958,7 +1220,6 @@
       });
     });
   }
-
   function renderPermissions() {
     if (state.sectionAccess.permissions === false) {
       els.panels.permissions.innerHTML = '<h2>Permissions / Roles</h2><div class="card"><p class="muted">This section is restricted to global administrators.</p></div>';
@@ -1944,9 +2205,6 @@
   bindEvents();
   hydrateSession();
 })();
-
-
-
 
 
 

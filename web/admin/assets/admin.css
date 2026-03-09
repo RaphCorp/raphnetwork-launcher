@@ -397,7 +397,7 @@ textarea {
 
 .modal-card {
     position: relative;
-    width: min(760px, calc(100vw - 2rem));
+    width: min(980px, calc(100vw - 2rem));
     max-height: calc(100vh - 2rem);
     overflow: auto;
     border-radius: 16px;
@@ -502,3 +502,48 @@ textarea {
         width: calc(100vw - 1rem);
     }
 }
+.tab-strip {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4rem;
+    padding: 0.35rem;
+    border: 1px solid rgba(120, 183, 155, 0.3);
+    border-radius: 12px;
+    background: #0f1a16;
+}
+
+.tab-btn {
+    width: auto;
+    border-radius: 9px;
+    background: #13231d;
+}
+
+.tab-btn.active {
+    border-color: rgba(99, 211, 155, 0.85);
+    background: linear-gradient(180deg, #2b5e48 0%, #254f3d 100%);
+}
+
+.tab-panel {
+    display: none;
+    border: 1px solid rgba(120, 183, 155, 0.28);
+    border-radius: 12px;
+    background: rgba(17, 30, 25, 0.75);
+    padding: 0.8rem;
+}
+
+.tab-panel.active {
+    display: block;
+}
+
+.checkbox-inline {
+    display: flex;
+    align-items: center;
+    gap: 0.55rem;
+    margin-top: 0.35rem;
+}
+
+.checkbox-inline input {
+    width: auto;
+    margin: 0;
+}
+

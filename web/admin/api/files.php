@@ -96,20 +96,66 @@ if ($action === 'upload') {
     admin_require_csrf_for_mutation($method);
 
     $relativeDirectory = (string) ($body['path'] ?? ($_POST['path'] ?? ''));
-    $upload = $_FILES['file'] ?? null;
-
-    if (!is_array($upload)) {
-        admin_json_response(['success' => false, 'error' => 'No upload file provided'], 422);
-    }
+    $singleUpload = $_FILES['file'] ?? null;
+    $multiUploadRaw = $_FILES['files'] ?? null;
 
     try {
         $relativeDirectory = Validator::relativePath($relativeDirectory);
-        FileManager::uploadFile($basePath, $relativeDirectory, $upload);
+
+        if (is_array($singleUpload) && isset($singleUpload['tmp_name'])) {
+            FileManager::uploadFile($basePath, $relativeDirectory, $singleUpload);
+            admin_json_response(['success' => true, 'uploaded' => 1]);
+        }
+
+        if (!is_array($multiUploadRaw) || !is_array($multiUploadRaw['name'] ?? null)) {
+            admin_json_response(['success' => false, 'error' => 'No upload file provided'], 422);
+        }
+
+        $uploads = [];
+        $names = $multiUploadRaw['name'];
+        $tmpNames = is_array($multiUploadRaw['tmp_name'] ?? null) ? $multiUploadRaw['tmp_name'] : [];
+        $errors = is_array($multiUploadRaw['error'] ?? null) ? $multiUploadRaw['error'] : [];
+        $sizes = is_array($multiUploadRaw['size'] ?? null) ? $multiUploadRaw['size'] : [];
+        $relativePaths = is_array($_POST['relative_paths'] ?? null) ? $_POST['relative_paths'] : [];
+
+        foreach ($names as $index => $name) {
+            $uploads[] = [
+                'name' => (string) ($relativePaths[$index] ?? $name),
+                'tmp_name' => (string) ($tmpNames[$index] ?? ''),
+                'error' => (int) ($errors[$index] ?? UPLOAD_ERR_NO_FILE),
+                'size' => (int) ($sizes[$index] ?? 0),
+            ];
+        }
+
+        $uploadedCount = FileManager::uploadFiles($basePath, $relativeDirectory, $uploads, true);
     } catch (InvalidArgumentException | RuntimeException $exception) {
         admin_json_response(['success' => false, 'error' => $exception->getMessage()], 422);
     }
 
-    admin_json_response(['success' => true]);
+    admin_json_response(['success' => true, 'uploaded' => $uploadedCount]);
+}
+
+if ($action === 'extract') {
+    admin_require_permission($currentUser, 'files.write', $instanceId);
+    admin_require_csrf_for_mutation($method);
+
+    try {
+        $archivePath = Validator::relativePath((string) ($body['path'] ?? ($_GET['path'] ?? '')));
+        if ($archivePath === '') {
+            throw new InvalidArgumentException('Archive path is required');
+        }
+
+        $destination = Validator::relativePath((string) ($body['destination'] ?? ($_GET['destination'] ?? '')));
+        $result = FileManager::extractArchive($basePath, $archivePath, $destination);
+    } catch (InvalidArgumentException | RuntimeException $exception) {
+        admin_json_response(['success' => false, 'error' => $exception->getMessage()], 422);
+    }
+
+    admin_json_response([
+        'success' => true,
+        'destination' => (string) ($result['destination'] ?? ''),
+        'extracted' => (int) ($result['extracted'] ?? 0),
+    ]);
 }
 
 if ($action === 'mkdir') {
@@ -148,4 +194,5 @@ if ($action === 'delete') {
 }
 
 admin_json_response(['success' => false, 'error' => 'Unknown action'], 400);
+
 

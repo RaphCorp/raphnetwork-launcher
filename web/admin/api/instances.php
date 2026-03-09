@@ -22,6 +22,31 @@ $findInstanceIndexById = static function (array $all, string $id): ?int {
     return null;
 };
 
+$loadLauncherConfigModule = static function (): void {
+    static $loaded = false;
+
+    if ($loaded === true || function_exists('raph_launcher_move_json_key')) {
+        $loaded = true;
+        return;
+    }
+
+    $candidates = [
+        __DIR__ . '/../../instances/php/instance_config.php',
+        dirname(__DIR__, 3) . '/instances/php/instance_config.php',
+        dirname(__DIR__, 2) . '/instances/php/instance_config.php',
+    ];
+
+    foreach ($candidates as $candidate) {
+        if (is_file($candidate)) {
+            require_once $candidate;
+            $loaded = true;
+            return;
+        }
+    }
+
+    throw new RuntimeException('Launcher config module not found. Expected instances/php/instance_config.php');
+};
+
 $normalizeAdmins = static function (array $adminIds): array {
     $admins = [];
     foreach ($adminIds as $adminId) {
@@ -179,6 +204,7 @@ if ($method === 'PUT' || $method === 'PATCH') {
     }
 
     $instance = $instances[$index];
+    $originalInstanceName = (string) ($instance['name'] ?? '');
 
     if (!Permissions::canAccessInstance($currentUser, $instance)) {
         admin_json_response(['success' => false, 'error' => 'Forbidden'], 403);
@@ -188,7 +214,18 @@ if ($method === 'PUT' || $method === 'PATCH') {
 
     try {
         if (array_key_exists('name', $body)) {
-            $instance['name'] = Validator::instanceName(Validator::requireString($body, 'name', 2, 64));
+            $newName = Validator::instanceName(Validator::requireString($body, 'name', 2, 64));
+            foreach ($instances as $candidateIndex => $candidateInstance) {
+                if ($candidateIndex === $index) {
+                    continue;
+                }
+
+                if (strtolower((string) ($candidateInstance['name'] ?? '')) === strtolower($newName)) {
+                    admin_json_response(['success' => false, 'error' => 'Instance name already exists'], 409);
+                }
+            }
+
+            $instance['name'] = $newName;
         }
 
         if (array_key_exists('owner', $body)) {
@@ -239,6 +276,18 @@ if ($method === 'PUT' || $method === 'PATCH') {
     $instances[$index] = $instance;
     DataStore::saveInstances($instances);
     DataStore::saveUsers($users);
+
+    $updatedInstanceName = (string) ($instance['name'] ?? '');
+    if ($originalInstanceName !== '' && $updatedInstanceName !== '' && $updatedInstanceName !== $originalInstanceName) {
+        try {
+            $loadLauncherConfigModule();
+            if (function_exists('raph_launcher_move_json_key')) {
+                raph_launcher_move_json_key($originalInstanceName, $updatedInstanceName);
+            }
+        } catch (Throwable $exception) {
+            admin_json_response(['success' => false, 'error' => 'Instance updated but launcher metadata rename failed: ' . $exception->getMessage()], 500);
+        }
+    }
 
     admin_json_response(['success' => true, 'instance' => $instance]);
 }
@@ -301,5 +350,7 @@ if ($method === 'DELETE') {
 }
 
 admin_json_response(['success' => false, 'error' => 'Unsupported request'], 400);
+
+
 
 

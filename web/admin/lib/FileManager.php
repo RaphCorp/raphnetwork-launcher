@@ -107,35 +107,120 @@ final class FileManager
 
     public static function uploadFile(string $basePath, string $relativeDirectory, array $uploadedFile): void
     {
-        if (($uploadedFile['error'] ?? UPLOAD_ERR_NO_FILE) !== UPLOAD_ERR_OK) {
-            throw new RuntimeException('Upload failed');
+        self::storeUploadedFile($basePath, $relativeDirectory, $uploadedFile, false);
+    }
+
+    public static function uploadFiles(string $basePath, string $relativeDirectory, array $uploadedFiles, bool $allowNestedPaths = false): int
+    {
+        $count = 0;
+        foreach ($uploadedFiles as $uploadedFile) {
+            if (!is_array($uploadedFile)) {
+                continue;
+            }
+
+            self::storeUploadedFile($basePath, $relativeDirectory, $uploadedFile, $allowNestedPaths);
+            $count++;
         }
 
-        $fileName = (string) ($uploadedFile['name'] ?? '');
-        if ($fileName === '' || strpbrk($fileName, "/\\") !== false || strpos($fileName, "\0") !== false) {
-            throw new RuntimeException('Invalid upload filename');
+        return $count;
+    }
+
+    public static function extractArchive(string $basePath, string $relativeArchivePath, string $relativeDestination = ''): array
+    {
+        if (!class_exists('ZipArchive')) {
+            throw new RuntimeException('Zip extraction is unavailable: ZipArchive extension is missing');
         }
 
-        $safeRelative = Validator::relativePath(trim($relativeDirectory . '/' . $fileName, '/'));
-        $target = self::resolvePath($basePath, $safeRelative, true, false);
-
-        $tmpPath = (string) ($uploadedFile['tmp_name'] ?? '');
-        if ($tmpPath === '' || !is_uploaded_file($tmpPath)) {
-            throw new RuntimeException('Invalid upload source');
+        $archivePath = self::resolvePath($basePath, $relativeArchivePath, false, false);
+        if (!is_file($archivePath)) {
+            throw new RuntimeException('Archive not found');
         }
 
-        $parent = dirname($target);
-        if (!is_dir($parent)) {
-            throw new RuntimeException('Upload directory does not exist');
+        if (!preg_match('/\.zip$/i', $archivePath)) {
+            throw new RuntimeException('Only .zip archives are supported');
         }
 
-        self::assertWritable($parent, 'Upload directory');
-
-        if (!move_uploaded_file($tmpPath, $target)) {
-            $lastError = error_get_last();
-            $detail = is_array($lastError) && isset($lastError['message']) ? (' (' . $lastError['message'] . ')') : '';
-            throw new RuntimeException('Unable to store uploaded file. Check filesystem permissions for: ' . $parent . $detail);
+        $relativeArchivePath = Validator::relativePath($relativeArchivePath);
+        if ($relativeDestination === '') {
+            $relativeDestination = dirname($relativeArchivePath);
+            if ($relativeDestination === '.') {
+                $relativeDestination = '';
+            }
         }
+
+        $relativeDestination = Validator::relativePath($relativeDestination);
+        $destinationPath = self::resolveOrCreateDirectory($basePath, $relativeDestination);
+        self::assertWritable($destinationPath, 'Extract destination');
+
+        $zip = new ZipArchive();
+        $openResult = $zip->open($archivePath);
+        if ($openResult !== true) {
+            throw new RuntimeException('Unable to open zip archive');
+        }
+
+        $extracted = 0;
+        try {
+            for ($i = 0; $i < $zip->numFiles; $i++) {
+                $entryName = $zip->getNameIndex($i);
+                if (!is_string($entryName) || $entryName === '') {
+                    continue;
+                }
+
+                $isDirectory = substr($entryName, -1) === '/';
+                $normalizedEntry = self::sanitizeNestedRelativePath($entryName);
+                if ($normalizedEntry === '') {
+                    continue;
+                }
+
+                $targetRelative = trim($relativeDestination . '/' . $normalizedEntry, '/');
+
+                if ($isDirectory) {
+                    self::resolveOrCreateDirectory($basePath, $targetRelative);
+                    continue;
+                }
+
+                $targetPath = self::resolveOrCreateFileTarget($basePath, $targetRelative);
+                $source = $zip->getStream($entryName);
+                if (!is_resource($source)) {
+                    throw new RuntimeException('Unable to read zip entry: ' . $entryName);
+                }
+
+                $target = @fopen($targetPath, 'wb');
+                if (!is_resource($target)) {
+                    fclose($source);
+                    throw new RuntimeException('Unable to write extracted file: ' . $targetRelative);
+                }
+
+                try {
+                    while (!feof($source)) {
+                        $chunk = fread($source, 8192);
+                        if ($chunk === false) {
+                            throw new RuntimeException('Failed while extracting: ' . $entryName);
+                        }
+
+                        if ($chunk === '') {
+                            continue;
+                        }
+
+                        if (fwrite($target, $chunk) === false) {
+                            throw new RuntimeException('Failed writing extracted file: ' . $targetRelative);
+                        }
+                    }
+                } finally {
+                    fclose($source);
+                    fclose($target);
+                }
+
+                $extracted++;
+            }
+        } finally {
+            $zip->close();
+        }
+
+        return [
+            'destination' => $relativeDestination,
+            'extracted' => $extracted,
+        ];
     }
 
     public static function createFolder(string $basePath, string $relativePath): void
@@ -225,6 +310,123 @@ final class FileManager
         }
     }
 
+    private static function storeUploadedFile(string $basePath, string $relativeDirectory, array $uploadedFile, bool $allowNestedPaths): void
+    {
+        if (($uploadedFile['error'] ?? UPLOAD_ERR_NO_FILE) !== UPLOAD_ERR_OK) {
+            throw new RuntimeException('Upload failed');
+        }
+
+        $fileName = (string) ($uploadedFile['name'] ?? '');
+        if ($fileName === '' || strpos($fileName, "\0") !== false) {
+            throw new RuntimeException('Invalid upload filename');
+        }
+
+        if ($allowNestedPaths) {
+            $safeFileName = self::sanitizeNestedRelativePath($fileName);
+        } else {
+            if (strpbrk($fileName, "/\\") !== false) {
+                throw new RuntimeException('Invalid upload filename');
+            }
+            $safeFileName = $fileName;
+        }
+
+        if ($safeFileName === '') {
+            throw new RuntimeException('Invalid upload filename');
+        }
+
+        $safeRelative = Validator::relativePath(trim($relativeDirectory . '/' . $safeFileName, '/'));
+        $target = self::resolveOrCreateFileTarget($basePath, $safeRelative);
+
+        $tmpPath = (string) ($uploadedFile['tmp_name'] ?? '');
+        if ($tmpPath === '' || !is_uploaded_file($tmpPath)) {
+            throw new RuntimeException('Invalid upload source');
+        }
+
+        $parent = dirname($target);
+        self::assertWritable($parent, 'Upload directory');
+
+        if (!move_uploaded_file($tmpPath, $target)) {
+            $lastError = error_get_last();
+            $detail = is_array($lastError) && isset($lastError['message']) ? (' (' . $lastError['message'] . ')') : '';
+            throw new RuntimeException('Unable to store uploaded file. Check filesystem permissions for: ' . $parent . $detail);
+        }
+    }
+
+    private static function sanitizeNestedRelativePath(string $path): string
+    {
+        $path = str_replace('\\', '/', trim($path));
+        $path = ltrim($path, '/');
+        $path = rtrim($path, '/');
+        if ($path === '') {
+            return '';
+        }
+
+        $parts = explode('/', $path);
+        $safeParts = [];
+        foreach ($parts as $part) {
+            if ($part === '' || $part === '.' || $part === '..') {
+                throw new RuntimeException('Invalid nested path in upload/archive');
+            }
+            if (strpos($part, "\0") !== false) {
+                throw new RuntimeException('Invalid nested path in upload/archive');
+            }
+            $safeParts[] = $part;
+        }
+
+        return implode('/', $safeParts);
+    }
+
+    private static function resolveOrCreateDirectory(string $basePath, string $relativePath): string
+    {
+        $relativePath = Validator::relativePath($relativePath);
+        if ($relativePath === '') {
+            return $basePath;
+        }
+
+        $parts = explode('/', $relativePath);
+        $current = $basePath;
+
+        foreach ($parts as $part) {
+            $candidate = $current . '/' . $part;
+            if (!is_dir($candidate)) {
+                self::assertWritable($current, 'Parent directory');
+                if (!mkdir($candidate, 0750, false) && !is_dir($candidate)) {
+                    throw new RuntimeException('Unable to create directory: ' . $part);
+                }
+            }
+
+            $real = realpath($candidate);
+            if ($real === false) {
+                throw new RuntimeException('Unable to resolve directory path');
+            }
+
+            $real = str_replace('\\', '/', $real);
+            if (!self::isWithin($real, $basePath)) {
+                throw new RuntimeException('Path traversal blocked');
+            }
+
+            $current = $real;
+        }
+
+        return $current;
+    }
+
+    private static function resolveOrCreateFileTarget(string $basePath, string $relativePath): string
+    {
+        $relativePath = Validator::relativePath($relativePath);
+        $parts = explode('/', $relativePath);
+        $fileName = array_pop($parts);
+        if (!is_string($fileName) || $fileName === '' || $fileName === '.' || $fileName === '..') {
+            throw new RuntimeException('Invalid file path');
+        }
+
+        $directoryPath = implode('/', $parts);
+        $directoryReal = self::resolveOrCreateDirectory($basePath, $directoryPath);
+        self::assertWritable($directoryReal, 'Target directory');
+
+        return rtrim($directoryReal, '/') . '/' . $fileName;
+    }
+
     private static function resolvePath(string $basePath, string $relativePath, bool $allowMissingTarget, bool $expectDirectory): string
     {
         $relativePath = Validator::relativePath($relativePath);
@@ -284,3 +486,6 @@ final class FileManager
         return strpos($target . '/', $root . '/') === 0;
     }
 }
+
+
+

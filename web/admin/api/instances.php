@@ -22,12 +22,16 @@ $findInstanceIndexById = static function (array $all, string $id): ?int {
     return null;
 };
 
-$loadLauncherConfigModule = static function (): void {
-    static $loaded = false;
+$loadLauncherConfigModule = static function (): bool {
+    static $loaded = null;
 
-    if ($loaded === true || function_exists('raph_launcher_move_json_key')) {
+    if ($loaded !== null) {
+        return $loaded;
+    }
+
+    if (function_exists('raph_launcher_move_json_key')) {
         $loaded = true;
-        return;
+        return true;
     }
 
     $candidates = [
@@ -39,12 +43,13 @@ $loadLauncherConfigModule = static function (): void {
     foreach ($candidates as $candidate) {
         if (is_file($candidate)) {
             require_once $candidate;
-            $loaded = true;
-            return;
+            $loaded = function_exists('raph_launcher_move_json_key');
+            return $loaded;
         }
     }
 
-    throw new RuntimeException('Launcher config module not found. Expected instances/php/instance_config.php');
+    $loaded = false;
+    return false;
 };
 
 $normalizeAdmins = static function (array $adminIds): array {
@@ -280,8 +285,7 @@ if ($method === 'PUT' || $method === 'PATCH') {
     $updatedInstanceName = (string) ($instance['name'] ?? '');
     if ($originalInstanceName !== '' && $updatedInstanceName !== '' && $updatedInstanceName !== $originalInstanceName) {
         try {
-            $loadLauncherConfigModule();
-            if (function_exists('raph_launcher_move_json_key')) {
+            if ($loadLauncherConfigModule() && function_exists('raph_launcher_move_json_key')) {
                 raph_launcher_move_json_key($originalInstanceName, $updatedInstanceName);
             }
         } catch (Throwable $exception) {
@@ -350,7 +354,4 @@ if ($method === 'DELETE') {
 }
 
 admin_json_response(['success' => false, 'error' => 'Unsupported request'], 400);
-
-
-
 

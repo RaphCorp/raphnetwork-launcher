@@ -312,8 +312,9 @@ final class FileManager
 
     private static function storeUploadedFile(string $basePath, string $relativeDirectory, array $uploadedFile, bool $allowNestedPaths): void
     {
-        if (($uploadedFile['error'] ?? UPLOAD_ERR_NO_FILE) !== UPLOAD_ERR_OK) {
-            throw new RuntimeException('Upload failed');
+        $uploadError = (int) ($uploadedFile['error'] ?? UPLOAD_ERR_NO_FILE);
+        if ($uploadError !== UPLOAD_ERR_OK) {
+            throw new RuntimeException(self::uploadErrorMessage($uploadError));
         }
 
         $fileName = (string) ($uploadedFile['name'] ?? '');
@@ -474,6 +475,26 @@ final class FileManager
         return $parentReal . '/' . $filename;
     }
 
+    private static function uploadErrorMessage(int $errorCode): string
+    {
+        switch ($errorCode) {
+            case UPLOAD_ERR_INI_SIZE:
+            case UPLOAD_ERR_FORM_SIZE:
+                return 'Upload exceeds server limits. Increase upload_max_filesize/post_max_size in PHP settings.';
+            case UPLOAD_ERR_PARTIAL:
+                return 'Upload was interrupted before completion.';
+            case UPLOAD_ERR_NO_FILE:
+                return 'No upload file received.';
+            case UPLOAD_ERR_NO_TMP_DIR:
+                return 'Server temporary upload directory is missing.';
+            case UPLOAD_ERR_CANT_WRITE:
+                return 'Server failed to write uploaded file to disk.';
+            case UPLOAD_ERR_EXTENSION:
+                return 'A PHP extension stopped the upload.';
+            default:
+                return 'Upload failed with error code ' . $errorCode;
+        }
+    }
     private static function isWithin(string $target, string $root): bool
     {
         $target = rtrim(str_replace('\\', '/', $target), '/');
@@ -486,6 +507,8 @@ final class FileManager
         return strpos($target . '/', $root . '/') === 0;
     }
 }
+
+
 
 
 

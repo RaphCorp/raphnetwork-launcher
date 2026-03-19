@@ -32,6 +32,7 @@
       instanceId: '',
       path: '',
       selectedFile: '',
+      selectedPaths: [],
       content: '',
       items: [],
       writable: false
@@ -965,12 +966,30 @@
       return parts.join('/');
     };
 
+    const visiblePaths = (state.file.items || [])
+      .map((item) => String(item.path || '').trim())
+      .filter(Boolean);
+    const visiblePathSet = new Set(visiblePaths);
+
+    const selectedPaths = Array.isArray(state.file.selectedPaths)
+      ? state.file.selectedPaths.filter((path) => visiblePathSet.has(path))
+      : [];
+    state.file.selectedPaths = Array.from(new Set(selectedPaths));
+    const selectedPathSet = new Set(state.file.selectedPaths);
+
+    const selectedCount = state.file.selectedPaths.length;
+    const allVisibleSelected = visiblePaths.length > 0 && selectedCount === visiblePaths.length;
+
     const rows = (state.file.items || []).map((item) => {
+      const itemPath = String(item.path || '');
       const canExtract = item.type === 'file' && /\.zip$/i.test(String(item.name || ''));
       const modifiedAt = item.modified_at ? new Date(item.modified_at).toLocaleString() : '-';
 
       return `
         <tr>
+          <td class="file-select-cell">
+            <input type="checkbox" data-select-path="${escapeHtml(itemPath)}" ${selectedPathSet.has(itemPath) ? 'checked' : ''}>
+          </td>
           <td>${escapeHtml(item.type)}</td>
           <td>${escapeHtml(item.name)}</td>
           <td>${escapeHtml(item.path)}</td>
@@ -1023,10 +1042,19 @@
         </div>
       </div>
 
-      <div class="table-wrap" style="margin-top:1rem;">
+      <div class="toolbar" style="margin-top:1rem;">
+        <label class="checkbox-inline" style="margin:0;">
+          <input type="checkbox" id="fileSelectAll" ${allVisibleSelected ? 'checked' : ''} ${visiblePaths.length === 0 ? 'disabled' : ''}>
+          Select all (${visiblePaths.length})
+        </label>
+        <button id="fileClearSelectionBtn" class="subtle" ${selectedCount === 0 ? 'disabled' : ''}>Clear Selection</button>
+        <button id="fileDeleteSelectedBtn" class="danger" ${isReadOnly || selectedCount === 0 ? 'disabled' : ''}>Delete Selected (${selectedCount})</button>
+      </div>
+
+      <div class="table-wrap" style="margin-top:0.5rem;">
         <table>
-          <thead><tr><th>Type</th><th>Name</th><th>Path</th><th>Size</th><th>Modified</th><th>Actions</th></tr></thead>
-          <tbody>${rows || '<tr><td colspan="6" class="muted">Directory is empty.</td></tr>'}</tbody>
+          <thead><tr><th style="width:44px;">Sel</th><th>Type</th><th>Name</th><th>Path</th><th>Size</th><th>Modified</th><th>Actions</th></tr></thead>
+          <tbody>${rows || '<tr><td colspan="7" class="muted">Directory is empty.</td></tr>'}</tbody>
         </table>
       </div>
 
@@ -1164,6 +1192,74 @@
       }
     });
 
+    document.getElementById('fileSelectAll')?.addEventListener('change', (event) => {
+      if (event.currentTarget.checked) {
+        state.file.selectedPaths = [...visiblePaths];
+      } else {
+        state.file.selectedPaths = [];
+      }
+      renderFiles();
+    });
+
+    document.getElementById('fileClearSelectionBtn')?.addEventListener('click', () => {
+      state.file.selectedPaths = [];
+      renderFiles();
+    });
+
+    document.getElementById('fileDeleteSelectedBtn')?.addEventListener('click', async () => {
+      const targets = Array.isArray(state.file.selectedPaths)
+        ? state.file.selectedPaths.filter(Boolean)
+        : [];
+
+      if (targets.length === 0) {
+        status('No paths selected', true);
+        return;
+      }
+
+      const preview = targets.slice(0, 3).join(', ');
+      const suffix = targets.length > 3 ? ` and ${targets.length - 3} more` : '';
+      const confirmed = await askConfirm({
+        title: 'Delete Selected Paths',
+        message: `Delete ${targets.length} selected path(s)? ${preview}${suffix}`,
+        confirmText: 'Delete Selected',
+        danger: true
+      });
+
+      if (!confirmed) return;
+
+      try {
+        const result = await api(`api/files.php?instance_id=${encodeURIComponent(state.file.instanceId)}&action=delete`, {
+          method: 'DELETE',
+          body: { paths: targets }
+        });
+        closeModal();
+        state.file.selectedPaths = [];
+        await loadFiles(state.file.instanceId, state.file.path);
+        status(`${result.deleted || targets.length} path(s) deleted`);
+      } catch (error) {
+        status(error.message, true);
+      }
+    });
+
+    els.panels.files.querySelectorAll('[data-select-path]').forEach((input) => {
+      input.addEventListener('change', (event) => {
+        const path = String(event.currentTarget.dataset.selectPath || '');
+        if (!path) {
+          return;
+        }
+
+        const set = new Set(Array.isArray(state.file.selectedPaths) ? state.file.selectedPaths : []);
+        if (event.currentTarget.checked) {
+          set.add(path);
+        } else {
+          set.delete(path);
+        }
+
+        state.file.selectedPaths = Array.from(set);
+        renderFiles();
+      });
+    });
+
     els.panels.files.querySelectorAll('[data-open-dir]').forEach((button) => {
       button.addEventListener('click', async () => {
         const path = button.dataset.openDir;
@@ -1212,6 +1308,9 @@
             body: { path }
           });
           closeModal();
+          state.file.selectedPaths = Array.isArray(state.file.selectedPaths)
+            ? state.file.selectedPaths.filter((entry) => entry !== path)
+            : [];
           await loadFiles(state.file.instanceId, state.file.path);
           status('Path deleted');
         } catch (error) {
@@ -2205,6 +2304,8 @@
   bindEvents();
   hydrateSession();
 })();
+
+
 
 
 

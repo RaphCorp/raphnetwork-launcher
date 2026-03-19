@@ -24,6 +24,35 @@ if (!Permissions::canAccessInstance($currentUser, $instance)) {
     admin_json_response(['success' => false, 'error' => 'Forbidden'], 403);
 }
 
+$userId = (string) ($currentUser['id'] ?? '');
+$instanceOwnerId = (string) ($instance['owner'] ?? '');
+$instanceAdmins = is_array($instance['admins'] ?? null) ? $instance['admins'] : [];
+
+$hasInstanceFilePower = static function (string $permission) use ($currentUser, $instanceId, $userId, $instanceOwnerId, $instanceAdmins): bool {
+    if (Permissions::hasPermission($currentUser, $permission, $instanceId)) {
+        return true;
+    }
+
+    if (Permissions::hasPermission($currentUser, 'instance.manage', $instanceId)) {
+        return true;
+    }
+
+    if ($userId !== '' && $instanceOwnerId === $userId) {
+        return true;
+    }
+
+    return $userId !== '' && in_array($userId, $instanceAdmins, true);
+};
+
+$requireInstanceFilePermission = static function (string $permission) use ($hasInstanceFilePower): void {
+    if (!$hasInstanceFilePower($permission)) {
+        admin_json_response([
+            'success' => false,
+            'error' => 'Forbidden. Missing permission: ' . $permission,
+        ], 403);
+    }
+};
+
 try {
     $basePath = FileManager::instanceBasePath($instance);
 } catch (RuntimeException $exception) {
@@ -33,8 +62,33 @@ try {
 $defaultAction = $method === 'GET' ? 'list' : ($method === 'DELETE' ? 'delete' : 'write');
 $action = strtolower((string) ($_GET['action'] ?? ($body['action'] ?? $defaultAction)));
 
+$parsePhpSizeToBytes = static function (string $value): int {
+    $value = trim($value);
+    if ($value === '') {
+        return 0;
+    }
+
+    $unit = strtolower(substr($value, -1));
+    $number = is_numeric($unit) ? (float) $value : (float) substr($value, 0, -1);
+
+    switch ($unit) {
+        case 'g':
+            return (int) ($number * 1024 * 1024 * 1024);
+        case 'm':
+            return (int) ($number * 1024 * 1024);
+        case 'k':
+            return (int) ($number * 1024);
+        default:
+            return (int) $number;
+    }
+};
+
+$phpUploadLimitMessage = static function (): string {
+    return 'Current PHP limits: upload_max_filesize=' . (string) ini_get('upload_max_filesize')
+        . ', post_max_size=' . (string) ini_get('post_max_size');
+};
 if ($action === 'list') {
-    admin_require_permission($currentUser, 'files.read', $instanceId);
+    $requireInstanceFilePermission('files.read');
 
     try {
         $path = Validator::relativePath((string) ($_GET['path'] ?? ($body['path'] ?? '')));
@@ -56,7 +110,7 @@ if ($action === 'list') {
 }
 
 if ($action === 'read') {
-    admin_require_permission($currentUser, 'files.read', $instanceId);
+    $requireInstanceFilePermission('files.read');
 
     try {
         $path = Validator::relativePath((string) ($_GET['path'] ?? ($body['path'] ?? '')));
@@ -73,7 +127,7 @@ if ($action === 'read') {
 }
 
 if ($action === 'write') {
-    admin_require_permission($currentUser, 'files.write', $instanceId);
+    $requireInstanceFilePermission('files.write');
     admin_require_csrf_for_mutation($method);
 
     try {
@@ -92,7 +146,7 @@ if ($action === 'write') {
 }
 
 if ($action === 'upload') {
-    admin_require_permission($currentUser, 'files.write', $instanceId);
+    $requireInstanceFilePermission('files.write');
     admin_require_csrf_for_mutation($method);
 
     $relativeDirectory = (string) ($body['path'] ?? ($_POST['path'] ?? ''));
@@ -108,7 +162,21 @@ if ($action === 'upload') {
         }
 
         if (!is_array($multiUploadRaw) || !is_array($multiUploadRaw['name'] ?? null)) {
-            admin_json_response(['success' => false, 'error' => 'No upload file provided'], 422);
+            $contentLength = (int) ($_SERVER['CONTENT_LENGTH'] ?? 0);
+            $postMaxRaw = (string) ini_get('post_max_size');
+            $postMaxBytes = $parsePhpSizeToBytes($postMaxRaw);
+
+            if ($contentLength > 0 && $postMaxBytes > 0 && $contentLength > $postMaxBytes) {
+                admin_json_response([
+                    'success' => false,
+                    'error' => 'Upload exceeds PHP post_max_size (' . $postMaxRaw . '). ' . $phpUploadLimitMessage(),
+                ], 422);
+            }
+
+            admin_json_response([
+                'success' => false,
+                'error' => 'No upload file provided. ' . $phpUploadLimitMessage(),
+            ], 422);
         }
 
         $uploads = [];
@@ -136,7 +204,7 @@ if ($action === 'upload') {
 }
 
 if ($action === 'extract') {
-    admin_require_permission($currentUser, 'files.write', $instanceId);
+    $requireInstanceFilePermission('files.write');
     admin_require_csrf_for_mutation($method);
 
     try {
@@ -159,7 +227,7 @@ if ($action === 'extract') {
 }
 
 if ($action === 'mkdir') {
-    admin_require_permission($currentUser, 'files.write', $instanceId);
+    $requireInstanceFilePermission('files.write');
     admin_require_csrf_for_mutation($method);
 
     try {
@@ -176,10 +244,37 @@ if ($action === 'mkdir') {
 }
 
 if ($action === 'delete') {
-    admin_require_permission($currentUser, 'files.delete', $instanceId);
+    $requireInstanceFilePermission('files.delete');
     admin_require_csrf_for_mutation($method);
 
     try {
+        $pathsRaw = $body['paths'] ?? null;
+        $deletedCount = 0;
+
+        if (is_array($pathsRaw)) {
+            $paths = [];
+            foreach ($pathsRaw as $candidatePath) {
+                $candidate = Validator::relativePath((string) $candidatePath);
+                if ($candidate === '') {
+                    continue;
+                }
+
+                $paths[] = $candidate;
+            }
+
+            $paths = array_values(array_unique($paths));
+            if ($paths === []) {
+                throw new InvalidArgumentException('At least one target path is required');
+            }
+
+            foreach ($paths as $targetPath) {
+                FileManager::deletePath($basePath, $targetPath);
+                $deletedCount++;
+            }
+
+            admin_json_response(['success' => true, 'deleted' => $deletedCount]);
+        }
+
         $path = Validator::relativePath((string) ($body['path'] ?? ($_GET['path'] ?? '')));
         if ($path === '') {
             throw new InvalidArgumentException('Target path is required');
@@ -190,9 +285,15 @@ if ($action === 'delete') {
         admin_json_response(['success' => false, 'error' => $exception->getMessage()], 422);
     }
 
-    admin_json_response(['success' => true]);
+    admin_json_response(['success' => true, 'deleted' => 1]);
 }
 
 admin_json_response(['success' => false, 'error' => 'Unknown action'], 400);
+
+
+
+
+
+
 
 

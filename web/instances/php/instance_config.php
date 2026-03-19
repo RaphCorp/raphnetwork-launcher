@@ -15,11 +15,7 @@ if (!function_exists('raph_launcher_config_file')) {
 
     function raph_launcher_config_mode(): string
     {
-        $mode = strtolower(trim((string) getenv('LAUNCHER_CONFIG_MODE')));
-        if ($mode === 'json' || $mode === 'legacy') {
-            return $mode;
-        }
-
+        // Force legacy backend storage for compatibility with existing instances.php workflows.
         return 'legacy';
     }
 
@@ -679,6 +675,7 @@ if (!function_exists('raph_launcher_config_file')) {
         return $normalized;
     }
 }
+
 
 
 

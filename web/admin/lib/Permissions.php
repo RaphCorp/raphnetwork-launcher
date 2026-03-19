@@ -124,6 +124,16 @@ final class Permissions
             }
         }
 
+        // Instance managers should have full file-manager power on that same instance,
+        // even when they do not hold global files.* permissions.
+        if (
+            $instanceId !== null
+            && strpos($permission, 'files.') === 0
+            && self::hasPermission($user, 'instance.manage', $instanceId)
+        ) {
+            return true;
+        }
+
         return false;
     }
 
@@ -293,3 +303,4 @@ final class Permissions
         return false;
     }
 }
+

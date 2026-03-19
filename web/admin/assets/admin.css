@@ -276,7 +276,8 @@ button.subtle {
 
 .table-wrap {
     width: 100%;
-    overflow: auto;
+    overflow-x: auto;
+    overflow-y: visible;
     border: 1px solid rgba(120, 183, 155, 0.3);
     border-radius: 10px;
 }
@@ -301,6 +302,15 @@ td {
 
 td.actions {
     white-space: nowrap;
+}
+
+.file-select-cell {
+    width: 44px;
+}
+
+.file-select-cell input {
+    width: auto;
+    margin: 0;
 }
 
 .form-grid {
@@ -364,6 +374,9 @@ textarea {
     right: 0;
     margin-top: 0.35rem;
     min-width: 180px;
+    max-width: min(240px, calc(100vw - 2rem));
+    max-height: min(260px, 45vh);
+    overflow: auto;
     z-index: 20;
     border: 1px solid rgba(120, 183, 155, 0.4);
     border-radius: 12px;
@@ -546,4 +559,6 @@ textarea {
     width: auto;
     margin: 0;
 }
+
+
 
